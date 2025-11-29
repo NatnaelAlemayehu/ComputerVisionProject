@@ -346,6 +346,9 @@
         let traditionalInterval = null;
         let fpsStartTime = Date.now();
         let fpsFrameCount = 0;
+        let trackerInitialized = false;
+        let processingFrame = false;
+        let processingTraditionalFrame = false;
 
         function switchTab(name) {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -420,6 +423,13 @@
         async function processArucoFrames() {
             if (!arucoActive) return;
             
+            if (processingFrame) {
+                requestAnimationFrame(processArucoFrames);
+                return;
+            }
+            
+            processingFrame = true;
+            
             fpsFrameCount++;
             const now = Date.now();
             const fps = Math.round((fpsFrameCount / (now - fpsStartTime)) * 1000);
@@ -445,9 +455,16 @@
                 if (data.processed_image) {
                     const img = new Image();
                     img.onload = () => {
-                        arucoCtx.drawImage(img, 0, 0);
+                        arucoCtx.clearRect(0, 0, arucoCanvas.width, arucoCanvas.height);
+                        arucoCtx.drawImage(img, 0, 0, arucoCanvas.width, arucoCanvas.height);
+                        processingFrame = false;
+                    };
+                    img.onerror = () => {
+                        processingFrame = false;
                     };
                     img.src = data.processed_image;
+                } else {
+                    processingFrame = false;
                 }
                 
                 document.getElementById('aruco-markers').textContent = data.markers || 0;
@@ -459,6 +476,7 @@
                 }
             } catch (err) {
                 console.error('Error processing frame:', err);
+                processingFrame = false;
             }
             
             requestAnimationFrame(processArucoFrames);
@@ -495,6 +513,7 @@
 
         function stopTraditionalTracking() {
             traditionalActive = false;
+            trackerInitialized = false;
             stopWebcam();
             
             document.getElementById('traditional-status').textContent = 'Status: Stopped';
@@ -528,6 +547,7 @@
                 const data = await response.json();
                 
                 if (data.status === 'success') {
+                    trackerInitialized = true;
                     document.getElementById('traditional-status').textContent = 'Status: Tracking Initialized';
                     document.getElementById('init-tracker-btn').style.display = 'none';
                     alert('Tracker initialized! Object will be tracked.');
@@ -535,6 +555,7 @@
                     alert('Error: ' + (data.error || 'Failed to initialize tracker'));
                 }
             } catch (err) {
+                console.error('Error initializing tracker:', err);
                 alert('Error initializing tracker: ' + err.message);
             }
         }
@@ -542,6 +563,7 @@
         async function resetTracker() {
             try {
                 await fetch('/assignment5_6/reset_tracker', { method: 'POST' });
+                trackerInitialized = false;
                 document.getElementById('traditional-status').textContent = 'Status: Tracker Reset - Position object and initialize';
                 document.getElementById('init-tracker-btn').style.display = 'inline-block';
                 document.getElementById('traditional-tracking-status').textContent = 'Inactive';
@@ -553,6 +575,13 @@
         async function processTraditionalFrames() {
             if (!traditionalActive) return;
             
+            if (processingTraditionalFrame) {
+                requestAnimationFrame(processTraditionalFrames);
+                return;
+            }
+            
+            processingTraditionalFrame = true;
+            
             fpsFrameCount++;
             const now = Date.now();
             const fps = Math.round((fpsFrameCount / (now - fpsStartTime)) * 1000);
@@ -562,7 +591,29 @@
                 fpsStartTime = now;
             }
             
-            // Capture frame from video
+            // If tracker not initialized, just show video with ROI box
+            if (!trackerInitialized) {
+                traditionalCtx.drawImage(sourceVideo, 0, 0);
+                
+                // Draw yellow ROI box
+                const h = traditionalCanvas.height;
+                const w = traditionalCanvas.width;
+                traditionalCtx.strokeStyle = 'yellow';
+                traditionalCtx.lineWidth = 2;
+                traditionalCtx.strokeRect(w/2 - 100, h/2 - 100, 200, 200);
+                
+                // Draw text
+                traditionalCtx.fillStyle = 'yellow';
+                traditionalCtx.font = '20px Arial';
+                traditionalCtx.fillText("Position object in box, then click 'Initialize Tracker'", 10, 30);
+                
+                processingTraditionalFrame = false;
+                requestAnimationFrame(processTraditionalFrames);
+                return;
+            }
+            
+            // Tracker IS initialized - get frame for processing (don't draw yet!)
+            // First draw to a temporary canvas to capture the frame
             traditionalCtx.drawImage(sourceVideo, 0, 0);
             const imageData = traditionalCanvas.toDataURL('image/jpeg', 0.8);
             
@@ -575,21 +626,36 @@
                 
                 const data = await response.json();
                 
-                if (data.processed_image) {
-                    const img = new Image();
-                    img.onload = () => {
-                        traditionalCtx.drawImage(img, 0, 0);
-                    };
-                    img.src = data.processed_image;
+                // Draw the tracking box directly on the current frame (client-side)
+                if (data.tracking && data.bbox) {
+                    const bbox = data.bbox;
+                    traditionalCtx.strokeStyle = 'lime';
+                    traditionalCtx.lineWidth = 4;
+                    traditionalCtx.strokeRect(bbox.x, bbox.y, bbox.width, bbox.height);
+                    
+                    // Draw text
+                    traditionalCtx.fillStyle = 'lime';
+                    traditionalCtx.font = 'bold 24px Arial';
+                    traditionalCtx.fillText('Tracking', 15, 35);
+                } else {
+                    traditionalCtx.fillStyle = 'red';
+                    traditionalCtx.font = 'bold 24px Arial';
+                    traditionalCtx.fillText('Not Tracking', 15, 35);
                 }
                 
                 document.getElementById('traditional-tracking-status').textContent = 
                     data.tracking ? 'Tracking' : 'Not Tracking';
+                    
             } catch (err) {
                 console.error('Error processing frame:', err);
             }
             
-            requestAnimationFrame(processTraditionalFrames);
+            processingTraditionalFrame = false;
+            
+            // Wait a tiny bit before next frame to allow rendering
+            setTimeout(() => {
+                requestAnimationFrame(processTraditionalFrames);
+            }, 1);
         }
 
         // Cleanup on page unload

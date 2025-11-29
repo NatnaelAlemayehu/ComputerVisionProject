@@ -1152,24 +1152,23 @@ def process_traditional_frame():
             
             if ret:
                 bbox = new_bbox
-                # Draw bounding box
+                # Draw bounding box with thick green line
                 p1 = (int(bbox[0]), int(bbox[1]))
                 p2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
                 cv2.rectangle(frame, p1, p2, (0, 255, 0), 3)
                 
+                # Draw center point
+                center_x = int(bbox[0] + bbox[2] / 2)
+                center_y = int(bbox[1] + bbox[3] / 2)
+                cv2.circle(frame, (center_x, center_y), 5, (0, 0, 255), -1)
+                
                 cv2.putText(frame, "Tracking", (10, 30),
                            cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 255, 0), 2)
             else:
-                cv2.putText(frame, "Tracking failure", (10, 30),
+                cv2.putText(frame, "Tracking failure - Click Reset", (10, 30),
                            cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 255), 2)
         else:
-            # Draw instruction
-            cv2.putText(frame, "Click 'Initialize Tracker' to start", (10, 30),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 255, 0), 2)
-            
-            # Draw default selection area (center box)
-            h, w = frame.shape[:2]
-            cv2.rectangle(frame, (w//2 - 100, h//2 - 100), (w//2 + 100, h//2 + 100), (255, 255, 0), 2)
+            print(f"Tracker not initialized: tracker={traditional_tracker}, initialized={traditional_tracker_initialized}")
         
         # Encode processed frame
         _, buffer = cv2.imencode('.jpg', frame)
