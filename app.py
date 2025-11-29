@@ -968,203 +968,129 @@ def visualize_matches(img1, img2, kps1, kps2, matches, inlier_mask=None, max_mat
 # ASSIGNMENT 5 & 6: Object Tracking (ArUco and Traditional Trackers)
 # ============================================================================
 
-# Global variables for tracking
-aruco_camera = None
-aruco_active = False
-aruco_markers_detected = 0
-aruco_fps = 0
-
-traditional_camera = None
-traditional_active = False
+# Global variables for tracking (client-side webcam approach)
 traditional_tracker = None
 traditional_tracker_type = "CSRT"
-traditional_tracking_success = False
-traditional_fps = 0
 tracking_bbox = None
+traditional_tracker_initialized = False
 
 @app.route('/assignment5_6')
 def assignment5_6():
     """Object tracking page with ArUco and traditional trackers"""
     return render_template('assignment5_6.html')
 
-# ArUco Marker Tracking Routes
-@app.route('/assignment5_6/start_aruco', methods=['POST'])
-def start_aruco_tracking():
-    """Start ArUco marker tracking"""
-    global aruco_camera, aruco_active
-    
+# ArUco Marker Tracking Routes (Client-side processing)
+@app.route('/assignment5_6/process_aruco', methods=['POST'])
+def process_aruco_frame():
+    """Process a single frame for ArUco marker detection"""
     try:
-        if aruco_camera is None:
-            aruco_camera = cv2.VideoCapture(0)
-            aruco_camera.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-            aruco_camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        data = request.get_json()
+        img_data = data.get('image', '')
         
-        aruco_active = True
-        return jsonify({'status': 'success', 'message': 'ArUco tracking started'})
+        # Decode base64 image
+        img_data = img_data.split(',')[1] if ',' in img_data else img_data
+        img_bytes = base64.b64decode(img_data)
+        nparr = np.frombuffer(img_bytes, np.uint8)
+        frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        
+        if frame is None:
+            return jsonify({'error': 'Failed to decode image'}), 400
+        
+        # Convert to grayscale for detection
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        
+        # Detect ArUco markers
+        aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_4X4_1000)
+        parameters = aruco.DetectorParameters()
+        corners, ids, rejected = aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
+        
+        markers_detected = len(ids) if ids is not None else 0
+        center_x, center_y = 0, 0
+        
+        # If markers detected
+        if ids is not None and len(ids) > 0:
+            # Draw detected markers
+            frame = aruco.drawDetectedMarkers(frame, corners, ids)
+            
+            # Calculate bounding box around all markers
+            all_corners = []
+            for corner in corners:
+                for point in corner[0]:
+                    all_corners.append(point)
+            
+            if len(all_corners) > 0:
+                all_corners = np.array(all_corners)
+                
+                x_min = int(np.min(all_corners[:, 0]))
+                y_min = int(np.min(all_corners[:, 1]))
+                x_max = int(np.max(all_corners[:, 0]))
+                y_max = int(np.max(all_corners[:, 1]))
+                
+                # Add padding
+                padding = 20
+                x_min = max(0, x_min - padding)
+                y_min = max(0, y_min - padding)
+                x_max = min(frame.shape[1], x_max + padding)
+                y_max = min(frame.shape[0], y_max + padding)
+                
+                # Draw bounding box
+                cv2.rectangle(frame, (x_min, y_min), (x_max, y_max), (0, 255, 0), 3)
+                
+                # Draw center
+                center_x = (x_min + x_max) // 2
+                center_y = (y_min + y_max) // 2
+                cv2.circle(frame, (center_x, center_y), 5, (0, 0, 255), -1)
+                
+                # Display info
+                cv2.putText(frame, f"Markers: {len(ids)}", (10, 30),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                cv2.putText(frame, f"Position: ({center_x}, {center_y})", (10, 60),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+        else:
+            cv2.putText(frame, "No markers detected", (10, 30),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+        
+        # Encode processed frame
+        _, buffer = cv2.imencode('.jpg', frame)
+        processed_img = base64.b64encode(buffer).decode('utf-8')
+        
+        return jsonify({
+            'processed_image': f'data:image/jpeg;base64,{processed_img}',
+            'markers': markers_detected,
+            'position': {'x': int(center_x), 'y': int(center_y)} if markers_detected > 0 else None
+        })
+        
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/assignment5_6/stop_aruco', methods=['POST'])
-def stop_aruco_tracking():
-    """Stop ArUco marker tracking"""
-    global aruco_camera, aruco_active
-    
-    aruco_active = False
-    if aruco_camera is not None:
-        aruco_camera.release()
-        aruco_camera = None
-    
-    return jsonify({'status': 'success', 'message': 'ArUco tracking stopped'})
-
-@app.route('/assignment5_6/aruco_feed')
-def aruco_feed():
-    """Video stream for ArUco tracking"""
-    def generate():
-        global aruco_active, aruco_markers_detected, aruco_fps
-        
-        aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_4X4_1000)
-        parameters = aruco.DetectorParameters()
-        
-        while aruco_active and aruco_camera is not None:
-            timer = cv2.getTickCount()
-            
-            ret, frame = aruco_camera.read()
-            if not ret:
-                break
-            
-            # Convert to grayscale for detection
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            
-            # Detect ArUco markers
-            corners, ids, rejected = aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
-            
-            # Update marker count
-            aruco_markers_detected = len(ids) if ids is not None else 0
-            
-            # If markers detected
-            if ids is not None and len(ids) > 0:
-                # Draw detected markers
-                frame = aruco.drawDetectedMarkers(frame, corners, ids)
-                
-                # Calculate bounding box around all markers
-                all_corners = []
-                for corner in corners:
-                    for point in corner[0]:
-                        all_corners.append(point)
-                
-                if len(all_corners) > 0:
-                    all_corners = np.array(all_corners)
-                    
-                    x_min = int(np.min(all_corners[:, 0]))
-                    y_min = int(np.min(all_corners[:, 1]))
-                    x_max = int(np.max(all_corners[:, 0]))
-                    y_max = int(np.max(all_corners[:, 1]))
-                    
-                    # Add padding
-                    padding = 20
-                    x_min = max(0, x_min - padding)
-                    y_min = max(0, y_min - padding)
-                    x_max = min(frame.shape[1], x_max + padding)
-                    y_max = min(frame.shape[0], y_max + padding)
-                    
-                    # Draw bounding box
-                    cv2.rectangle(frame, (x_min, y_min), (x_max, y_max), (0, 255, 0), 3)
-                    
-                    # Draw center
-                    center_x = (x_min + x_max) // 2
-                    center_y = (y_min + y_max) // 2
-                    cv2.circle(frame, (center_x, center_y), 5, (0, 0, 255), -1)
-                    
-                    # Display info
-                    cv2.putText(frame, f"Markers: {len(ids)}", (10, 80),
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-                    cv2.putText(frame, f"Position: ({center_x}, {center_y})", (10, 110),
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
-            else:
-                cv2.putText(frame, "No markers detected", (10, 80),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-            
-            # Calculate FPS
-            aruco_fps = int(cv2.getTickFrequency() / (cv2.getTickCount() - timer))
-            
-            # Display FPS
-            cv2.putText(frame, f"FPS: {aruco_fps}", (10, 30),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50, 170, 50), 2)
-            cv2.putText(frame, "ArUco Tracker", (10, 60),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50, 170, 50), 2)
-            
-            # Encode frame
-            ret, buffer = cv2.imencode('.jpg', frame)
-            frame_bytes = buffer.tobytes()
-            
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-    
-    return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
-
-@app.route('/assignment5_6/aruco_status')
-def aruco_status():
-    """Get ArUco tracking status"""
-    return jsonify({
-        'active': aruco_active,
-        'markers': aruco_markers_detected,
-        'fps': aruco_fps
-    })
-
-# Traditional Object Tracking Routes
-@app.route('/assignment5_6/start_traditional', methods=['POST'])
-def start_traditional_tracking():
-    """Start traditional object tracking"""
-    global traditional_camera, traditional_active, traditional_tracker_type, traditional_tracker
+# Traditional Object Tracking Routes (Client-side)
+@app.route('/assignment5_6/init_tracker', methods=['POST'])
+def initialize_tracker():
+    """Initialize tracker with ROI from client"""
+    global traditional_tracker, tracking_bbox, traditional_tracker_initialized, traditional_tracker_type
     
     try:
         data = request.get_json()
+        img_data = data.get('image', '')
+        bbox_data = data.get('bbox', None)
         traditional_tracker_type = data.get('tracker_type', 'CSRT')
         
-        if traditional_camera is None:
-            traditional_camera = cv2.VideoCapture(0)
-            traditional_camera.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-            traditional_camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        # Decode base64 image
+        img_data = img_data.split(',')[1] if ',' in img_data else img_data
+        img_bytes = base64.b64decode(img_data)
+        nparr = np.frombuffer(img_bytes, np.uint8)
+        frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         
-        traditional_active = True
-        traditional_tracker = None  # Will be initialized when user selects ROI
+        if frame is None:
+            return jsonify({'error': 'Failed to decode image'}), 400
         
-        return jsonify({'status': 'success', 'message': 'Camera started'})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/assignment5_6/stop_traditional', methods=['POST'])
-def stop_traditional_tracking():
-    """Stop traditional object tracking"""
-    global traditional_camera, traditional_active, traditional_tracker
-    
-    traditional_active = False
-    traditional_tracker = None
-    
-    if traditional_camera is not None:
-        traditional_camera.release()
-        traditional_camera = None
-    
-    return jsonify({'status': 'success', 'message': 'Tracking stopped'})
-
-@app.route('/assignment5_6/init_tracker', methods=['POST'])
-def initialize_tracker():
-    """Initialize tracker with ROI selection"""
-    global traditional_tracker, tracking_bbox, traditional_tracking_success
-    
-    try:
-        if traditional_camera is None or not traditional_active:
-            return jsonify({'error': 'Camera not active'}), 400
+        # Use provided bbox or default center box
+        if bbox_data:
+            bbox = (bbox_data['x'], bbox_data['y'], bbox_data['width'], bbox_data['height'])
+        else:
+            h, w = frame.shape[:2]
+            bbox = (w//2 - 100, h//2 - 100, 200, 200)
         
-        # Read a frame
-        ret, frame = traditional_camera.read()
-        if not ret:
-            return jsonify({'error': 'Failed to read frame'}), 500
-        
-        # Let user select ROI (this would need to be implemented differently in a web context)
-        # For now, we'll use a default bounding box in the center
-        h, w = frame.shape[:2]
-        bbox = (w//2 - 100, h//2 - 100, 200, 200)
         tracking_bbox = bbox
         
         # Create tracker based on type
@@ -1187,78 +1113,87 @@ def initialize_tracker():
         
         # Initialize tracker
         traditional_tracker.init(frame, bbox)
-        traditional_tracking_success = True
+        traditional_tracker_initialized = True
         
-        return jsonify({'status': 'success', 'message': 'Tracker initialized'})
+        return jsonify({
+            'status': 'success',
+            'message': 'Tracker initialized',
+            'bbox': {'x': bbox[0], 'y': bbox[1], 'width': bbox[2], 'height': bbox[3]}
+        })
+        
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/assignment5_6/traditional_feed')
-def traditional_feed():
-    """Video stream for traditional tracking"""
-    def generate():
-        global traditional_active, traditional_tracker, traditional_tracking_success, traditional_fps, tracking_bbox
-        
-        while traditional_active and traditional_camera is not None:
-            timer = cv2.getTickCount()
-            
-            ret, frame = traditional_camera.read()
-            if not ret:
-                break
-            
-            # If tracker is initialized, update it
-            if traditional_tracker is not None and tracking_bbox is not None:
-                ret, bbox = traditional_tracker.update(frame)
-                traditional_tracking_success = ret
-                
-                if ret:
-                    # Draw bounding box
-                    p1 = (int(bbox[0]), int(bbox[1]))
-                    p2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
-                    cv2.rectangle(frame, p1, p2, (0, 255, 0), 3)
-                    
-                    cv2.putText(frame, "Tracking", (10, 80),
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 255, 0), 2)
-                else:
-                    cv2.putText(frame, "Tracking failure", (10, 80),
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 255), 2)
-            else:
-                # Draw instruction to select ROI
-                cv2.putText(frame, "Click 'Initialize Tracker' to start", (10, 80),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 255, 0), 2)
-                
-                # Draw default selection area (center box)
-                h, w = frame.shape[:2]
-                cv2.rectangle(frame, (w//2 - 100, h//2 - 100), (w//2 + 100, h//2 + 100), (255, 255, 0), 2)
-                cv2.putText(frame, "Default tracking area", (w//2 - 90, h//2 - 110),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 2)
-            
-            # Calculate FPS
-            traditional_fps = int(cv2.getTickFrequency() / (cv2.getTickCount() - timer))
-            
-            # Display info
-            cv2.putText(frame, f"{traditional_tracker_type} Tracker", (10, 30),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50, 170, 50), 2)
-            cv2.putText(frame, f"FPS: {traditional_fps}", (10, 60),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50, 170, 50), 2)
-            
-            # Encode frame
-            ret, buffer = cv2.imencode('.jpg', frame)
-            frame_bytes = buffer.tobytes()
-            
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+@app.route('/assignment5_6/process_traditional', methods=['POST'])
+def process_traditional_frame():
+    """Process a single frame with traditional tracking"""
+    global traditional_tracker, traditional_tracker_initialized, tracking_bbox
     
-    return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
+    try:
+        data = request.get_json()
+        img_data = data.get('image', '')
+        
+        # Decode base64 image
+        img_data = img_data.split(',')[1] if ',' in img_data else img_data
+        img_bytes = base64.b64decode(img_data)
+        nparr = np.frombuffer(img_bytes, np.uint8)
+        frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        
+        if frame is None:
+            return jsonify({'error': 'Failed to decode image'}), 400
+        
+        tracking_success = False
+        bbox = None
+        
+        # If tracker is initialized, update it
+        if traditional_tracker is not None and traditional_tracker_initialized:
+            ret, new_bbox = traditional_tracker.update(frame)
+            tracking_success = ret
+            
+            if ret:
+                bbox = new_bbox
+                # Draw bounding box
+                p1 = (int(bbox[0]), int(bbox[1]))
+                p2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
+                cv2.rectangle(frame, p1, p2, (0, 255, 0), 3)
+                
+                cv2.putText(frame, "Tracking", (10, 30),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 255, 0), 2)
+            else:
+                cv2.putText(frame, "Tracking failure", (10, 30),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 255), 2)
+        else:
+            # Draw instruction
+            cv2.putText(frame, "Click 'Initialize Tracker' to start", (10, 30),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 255, 0), 2)
+            
+            # Draw default selection area (center box)
+            h, w = frame.shape[:2]
+            cv2.rectangle(frame, (w//2 - 100, h//2 - 100), (w//2 + 100, h//2 + 100), (255, 255, 0), 2)
+        
+        # Encode processed frame
+        _, buffer = cv2.imencode('.jpg', frame)
+        processed_img = base64.b64encode(buffer).decode('utf-8')
+        
+        return jsonify({
+            'processed_image': f'data:image/jpeg;base64,{processed_img}',
+            'tracking': tracking_success,
+            'bbox': {'x': int(bbox[0]), 'y': int(bbox[1]), 'width': int(bbox[2]), 'height': int(bbox[3])} if bbox is not None else None
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-@app.route('/assignment5_6/traditional_status')
-def traditional_status():
-    """Get traditional tracking status"""
-    return jsonify({
-        'active': traditional_active,
-        'tracking': traditional_tracking_success if traditional_tracker is not None else False,
-        'fps': traditional_fps
-    })
+@app.route('/assignment5_6/reset_tracker', methods=['POST'])
+def reset_tracker():
+    """Reset the traditional tracker"""
+    global traditional_tracker, traditional_tracker_initialized, tracking_bbox
+    
+    traditional_tracker = None
+    traditional_tracker_initialized = False
+    tracking_bbox = None
+    
+    return jsonify({'status': 'success', 'message': 'Tracker reset'})
 
 
 # ============================================================================
@@ -1514,11 +1449,5 @@ if __name__ == '__main__':
             pose.close()
         if hands:
             hands.close()
-        
-        # Assignment 5_6 cleanup
-        if aruco_camera:
-            aruco_camera.release()
-        if traditional_camera:
-            traditional_camera.release()
         
         cv2.destroyAllWindows()
