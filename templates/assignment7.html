@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assignment 7 - Computer Vision</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/assignment7.css') }}">
+</head>
+<body>
+    <a href="/" class="nav-home">← Home</a>
+    <div class="container">
+        <header>
+            <h1>Computer Vision Assignment 7</h1>
+            <p class="subtitle">Stereo Vision & Real-time Tracking</p>
+        </header>
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('stereo')">Question 1: Calibrated Stereo</div>
+            <div class="tab" onclick="switchTab('tracking')">Question 3: Pose Tracking</div>
+        </div>
+        <div id="stereo" class="tab-content active">
+            <div class="info-box">
+                <h3>📐 Calibrated Stereo Vision</h3>
+                <p>Upload two stereo images and select corresponding points to calculate depth and measure object size.</p>
+            </div>
+            <div class="upload-section">
+                <label for="stereo-img1" class="upload-btn">Choose Left Image</label>
+                <input type="file" id="stereo-img1" accept="image/*" onchange="previewFile('stereo', 1)">
+                <p id="stereo-filename1"></p>
+                
+                <label for="stereo-img2" class="upload-btn">Choose Right Image</label>
+                <input type="file" id="stereo-img2" accept="image/*" onchange="previewFile('stereo', 2)">
+                <p id="stereo-filename2"></p>
+            </div>
+            <div class="controls">
+                <div class="control-group">
+                    <label for="focal-length">Focal Length (fx):</label>
+                    <input type="number" id="focal-length" value="923.13795073" step="0.01">
+                </div>
+                <div class="control-group">
+                    <label for="baseline">Baseline (mm):</label>
+                    <input type="number" id="baseline" value="79" step="0.1">
+                </div>
+                <div class="control-group">
+                    <label for="cx">Center X (cx):</label>
+                    <input type="number" id="cx" value="635.39387264" step="0.01">
+                </div>
+                <div class="control-group">
+                    <label for="cy">Center Y (cy):</label>
+                    <input type="number" id="cy" value="473.34284514" step="0.01">
+                </div>
+            </div>
+            <button class="process-btn" id="stereo-process-btn" onclick="processStereo()" disabled>Calculate Depth</button>
+            <div class="error" id="stereo-error"></div>
+            <div class="loading" id="stereo-loading">
+                <div class="spinner"></div>
+                <p>Processing...</p>
+            </div>
+            <div class="results" id="stereo-results">
+                <h2>Select Corresponding Points</h2>
+                <div class="stereo-container">
+                    <div class="stereo-image">
+                        <h3>Left Image</h3>
+                        <canvas id="canvas-left"></canvas>
+                        <p id="point-left">Click to select point</p>
+                    </div>
+                    <div class="stereo-image">
+                        <h3>Right Image</h3>
+                        <canvas id="canvas-right"></canvas>
+                        <p id="point-right">Click to select point</p>
+                    </div>
+                </div>
+                <div class="result-info" id="stereo-info">
+                    <h3>Depth Results</h3>
+                    <p>Disparity: <span id="disparity">-</span> px</p>
+                    <p>Depth (Z): <span id="depth">-</span></p>
+                </div>
+                
+                <div class="measurement-section">
+                    <h3>Distance Measurement</h3>
+                    <p id="measure-instruction">Calculate depth first by selecting corresponding points in both images</p>
+                    <button class="process-btn" id="measure-btn" onclick="startMeasurement()" disabled>Measure Distance</button>
+                    
+                    <div class="result-info" id="measure-results">
+                        <h4>Measurement Results</h4>
+                        <p id="point1-coords">Point 1: -</p>
+                        <p id="point2-coords">Point 2: -</p>
+                        <p><strong>Distance: <span id="measured-distance">-</span></strong></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="tracking" class="tab-content">
+            {% if error %}
+            <div class="error-message">
+                <h3>❌ Error: MediaPipe Not Available</h3>
+                <p>{{ error }}</p>
+                <p style="margin-top: 10px;">Please install MediaPipe: <code>pip install mediapipe</code></p>
+            </div>
+            {% else %}
+            <div class="info-box">
+                <h3>📹 Real-time Pose & Hand Tracking</h3>
+                <p>Track body pose and hand landmarks using MediaPipe. Allow camera access when prompted.</p>
+            </div>
+            <div class="video-container">
+                <img id="video-feed" src="/assignment7/video_feed" alt="Video Feed" />
+            </div>
+            <div class="controls">
+                <button class="btn btn-start" id="startBtn" onclick="startRecording()">⏺ Start Recording</button>
+                <button class="btn btn-stop" id="stopBtn" onclick="stopRecording()" disabled>⏹ Stop Recording</button>
+                <button class="btn btn-download" id="downloadBtn" onclick="downloadCSV()" disabled>⬇ Download CSV</button>
+            </div>
+            <div class="status" id="status">
+                <h3>Status</h3>
+                <p id="statusText">Ready to record</p>
+                <p id="frameCount" style="margin-top: 10px;">Frames recorded: 0</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/assignment7.js') }}"></script>
+</body>
+</html>

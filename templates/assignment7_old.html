@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Assignment 7 - Real-time Tracking</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
+        .nav-home { position: fixed; top: 20px; left: 20px; background: white; padding: 10px 20px; border-radius: 30px; text-decoration: none; color: #667eea; font-weight: bold; box-shadow: 0 2px 10px rgba(0,0,0,0.1); z-index: 100; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; border-radius: 20px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3); overflow: hidden; }
+        header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; }
+        h1 { font-size: 2.5em; margin-bottom: 10px; }
+        .content { padding: 40px; }
+        .video-container { background: #000; border-radius: 10px; overflow: hidden; margin-bottom: 30px; text-align: center; }
+        #video-feed { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+        .controls { display: flex; gap: 15px; justify-content: center; margin-bottom: 20px; }
+        .btn { padding: 15px 30px; border: none; border-radius: 8px; font-size: 1.1em; font-weight: 600; cursor: pointer; transition: transform 0.2s; }
+        .btn-start { background: #28a745; color: white; }
+        .btn-stop { background: #dc3545; color: white; }
+        .btn-download { background: #007bff; color: white; }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        .btn:disabled { background: #6c757d; cursor: not-allowed; transform: none; }
+        .status { background: #f8f9fa; padding: 20px; border-radius: 10px; text-align: center; }
+        .status h3 { color: #333; margin-bottom: 10px; }
+        .status p { color: #666; font-size: 1.1em; }
+        .recording-indicator { display: inline-block; width: 12px; height: 12px; background: #dc3545; border-radius: 50%; margin-right: 8px; animation: blink 1s infinite; }
+        @keyframes blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
+        .info { background: #d1ecf1; color: #0c5460; padding: 20px; border-radius: 10px; margin-bottom: 20px; border-left: 4px solid #17a2b8; }
+        {% if error %}
+        .error-message { background: #f8d7da; color: #721c24; padding: 20px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #f5c6cb; }
+        {% endif %}
+    </style>
+</head>
+<body>
+    <a href="/" class="nav-home">← Home</a>
+    <div class="container">
+        <header>
+            <h1>🎥 Real-time Pose & Hand Tracking</h1>
+            <p>Track body pose and hand landmarks using MediaPipe</p>
+        </header>
+        <div class="content">
+            {% if error %}
+            <div class="error-message">
+                <h3>❌ Error: MediaPipe Not Available</h3>
+                <p>{{ error }}</p>
+                <p style="margin-top: 10px;">Please install MediaPipe: <code>pip install mediapipe</code></p>
+            </div>
+            {% else %}
+            <div class="info">
+                <h3>📹 Instructions</h3>
+                <p>Allow camera access when prompted. Click "Start Recording" to capture pose and hand landmarks. Click "Stop Recording" when done, then download the CSV file with tracking data.</p>
+            </div>
+            <div class="video-container">
+                <img id="video-feed" src="/assignment7/video_feed" alt="Video Feed" />
+            </div>
+            <div class="controls">
+                <button class="btn btn-start" id="startBtn" onclick="startRecording()">⏺ Start Recording</button>
+                <button class="btn btn-stop" id="stopBtn" onclick="stopRecording()" disabled>⏹ Stop Recording</button>
+                <button class="btn btn-download" id="downloadBtn" onclick="downloadCSV()" disabled>⬇ Download CSV</button>
+            </div>
+            <div class="status" id="status">
+                <h3>Status</h3>
+                <p id="statusText">Ready to record</p>
+                <p id="frameCount" style="margin-top: 10px;">Frames recorded: 0</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    <script>
+        let isRecording = false;
+        let statusInterval = null;
+        
+        async function startRecording() {
+            try {
+                const res = await fetch('/assignment7/start_recording', { method: 'POST' });
+                const data = await res.json();
+                isRecording = true;
+                document.getElementById('startBtn').disabled = true;
+                document.getElementById('stopBtn').disabled = false;
+                document.getElementById('statusText').innerHTML = '<span class="recording-indicator"></span>Recording...';
+                statusInterval = setInterval(updateStatus, 1000);
+            } catch(e) {
+                alert('Error starting recording: ' + e.message);
+            }
+        }
+        
+        async function stopRecording() {
+            try {
+                const res = await fetch('/assignment7/stop_recording', { method: 'POST' });
+                const data = await res.json();
+                isRecording = false;
+                document.getElementById('startBtn').disabled = false;
+                document.getElementById('stopBtn').disabled = true;
+                document.getElementById('downloadBtn').disabled = false;
+                document.getElementById('statusText').textContent = 'Recording stopped';
+                if(statusInterval) clearInterval(statusInterval);
+            } catch(e) {
+                alert('Error stopping recording: ' + e.message);
+            }
+        }
+        
+        async function downloadCSV() {
+            window.location.href = '/assignment7/download_csv';
+        }
+        
+        async function updateStatus() {
+            try {
+                const res = await fetch('/assignment7/status');
+                const data = await res.json();
+                document.getElementById('frameCount').textContent = `Frames recorded: ${data.frames_recorded}`;
+            } catch(e) {
+                console.error('Error updating status:', e);
+            }
+        }
+    </script>
+</body>
+</html>

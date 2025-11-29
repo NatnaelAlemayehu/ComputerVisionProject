@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assignment 1 - Camera Calibration</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(to right, #f9f9f9, #e3f2fd);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .nav-home {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: white;
+            padding: 10px 20px;
+            border-radius: 30px;
+            text-decoration: none;
+            color: #1976D2;
+            font-weight: bold;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+
+        .nav-home:hover {
+            transform: scale(1.05);
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            font-size: 28px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .description {
+            margin-bottom: 20px;
+            color: #555;
+        }
+
+        .control-section {
+            margin-bottom: 20px;
+        }
+
+        .control-section label {
+            margin-right: 10px;
+            font-weight: 500;
+        }
+
+        .control-section input[type="number"],
+        .control-section input[type="file"] {
+            padding: 5px 10px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+        }
+
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .btn-reset {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn-reset:hover {
+            background: #d32f2f;
+        }
+
+        .canvas-container {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        #imageCanvas {
+            border: 3px solid #1976D2;
+            border-radius: 10px;
+            cursor: crosshair;
+            max-width: 100%;
+            height: auto;
+        }
+
+        h2 {
+            font-size: 20px;
+            color: #1976D2;
+            margin-bottom: 10px;
+        }
+
+        .measurements-list {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .measurements-list li {
+            margin-bottom: 6px;
+            padding: 8px;
+            background: #f5f5f5;
+            border-radius: 4px;
+        }
+
+        .no-measurements {
+            color: #777;
+            font-style: italic;
+        }
+
+        .message {
+            color: green;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        .actual-data {
+            color: #555;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <a href="/" class="nav-home">← Home</a>
+
+    <div class="container">
+        <h1>📏 Real-World Dimension Estimator</h1>
+        <p class="description">Upload an image, click two points, and compute the real-world distance using your camera parameters.</p>
+
+        <div class="control-section">
+            <input type="file" id="imageUpload" accept="image/*">
+        </div>
+
+        <div class="control-section">
+            <button class="btn-reset" onclick="resetMeasurements()">Reset Measurements</button>
+        </div>
+
+        <div class="control-section">
+            <label for="fxInput">Focal length (fx) in pixels:</label>
+            <input type="number" id="fxInput" value="0" step="0.01">
+        </div>
+
+        <div class="control-section">
+            <label for="dmmInput">Camera-to-plane distance D (mm):</label>
+            <input type="number" id="dmmInput" value="242" step="0.1">
+        </div>
+
+        <div class="canvas-container">
+            <canvas id="imageCanvas"></canvas>
+        </div>
+
+        <h2>Measurements</h2>
+        <ul id="measurementsList" class="measurements-list">
+            <li class="no-measurements">No measurements yet. Click two points to start.</li>
+        </ul>
+
+        <div id="message" class="message" style="display: none;"></div>
+        <div id="actualData" class="actual-data" style="display: none;">Actual data is 4cm</div>
+    </div>
+
+    <script>
+        // Global state
+        let imageObj = null;
+        let fx = 0;
+        let Dmm = 242;
+        let points = [];
+        let segments = [];
+
+        const canvas = document.getElementById('imageCanvas');
+        const ctx = canvas.getContext('2d');
+        const fxInput = document.getElementById('fxInput');
+        const dmmInput = document.getElementById('dmmInput');
+        const imageUpload = document.getElementById('imageUpload');
+        const measurementsList = document.getElementById('measurementsList');
+        const messageDiv = document.getElementById('message');
+        const actualDataDiv = document.getElementById('actualData');
+
+        // Load calibration data on page load
+        fetch('/assignment1/calibration')
+            .then(res => res.json())
+            .then(data => {
+                if (data.fx) {
+                    fx = data.fx;
+                    fxInput.value = fx;
+                }
+            })
+            .catch(err => console.error('Failed to load calibration:', err));
+
+        // Calculate 2D distance between two points
+        function distance2D(a, b) {
+            const dx = a.x - b.x;
+            const dy = a.y - b.y;
+            return Math.hypot(dx, dy);
+        }
+
+        // Draw canvas
+        function draw() {
+            if (!ctx) return;
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw image
+            if (imageObj) {
+                ctx.drawImage(imageObj, 0, 0, canvas.width, canvas.height);
+            }
+
+            // Draw segments
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#4CAF50';
+            ctx.fillStyle = '#4CAF50';
+
+            segments.forEach((seg) => {
+                // Draw line
+                ctx.beginPath();
+                ctx.moveTo(seg.a.x, seg.a.y);
+                ctx.lineTo(seg.b.x, seg.b.y);
+                ctx.stroke();
+
+                // Draw points
+                ctx.beginPath();
+                ctx.arc(seg.a.x, seg.a.y, 5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(seg.b.x, seg.b.y, 5, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Draw label
+                const label = `${seg.mm.toFixed(2)} mm`;
+                const midx = (seg.a.x + seg.b.x) / 2;
+                const midy = (seg.a.y + seg.b.y) / 2;
+                ctx.font = '16px Arial';
+                ctx.fillText(label, midx + 10, midy - 10);
+            });
+
+            // Draw temporary point (odd number of points)
+            if (points.length % 2 === 1) {
+                const p = points[points.length - 1];
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // Handle canvas click
+        canvas.addEventListener('click', (e) => {
+            if (!imageObj) {
+                alert('Please upload an image first!');
+                return;
+            }
+
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+
+            const x = (e.clientX - rect.left) * scaleX;
+            const y = (e.clientY - rect.top) * scaleY;
+
+            points.push({ x, y });
+
+            // If we have an even number of points, create a segment
+            if (points.length % 2 === 0) {
+                const a = points[points.length - 2];
+                const b = points[points.length - 1];
+                const px = distance2D(a, b);
+
+                if (fx <= 0) {
+                    messageDiv.style.display = 'block';
+                    messageDiv.textContent = 'Please enter a positive focal length.';
+                    messageDiv.style.color = 'red';
+                    return;
+                }
+
+                const Lmm = (px * Dmm) / fx;
+                const seg = { a, b, px, mm: Lmm };
+                segments.push(seg);
+
+                messageDiv.style.display = 'block';
+                messageDiv.style.color = 'green';
+                messageDiv.textContent = `Measured: ${px.toFixed(2)} px → ${Lmm.toFixed(2)} mm`;
+                actualDataDiv.style.display = 'block';
+
+                updateMeasurementsList();
+            }
+
+            draw();
+        });
+
+        // Handle image upload
+        imageUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const img = new Image();
+            img.onload = () => {
+                imageObj = img;
+                canvas.width = img.naturalWidth;
+                canvas.height = img.naturalHeight;
+                resetMeasurements();
+                draw();
+            };
+            img.src = URL.createObjectURL(file);
+        });
+
+        // Update focal length
+        fxInput.addEventListener('input', (e) => {
+            fx = parseFloat(e.target.value) || 0;
+        });
+
+        // Update distance
+        dmmInput.addEventListener('input', (e) => {
+            Dmm = parseFloat(e.target.value) || 0;
+        });
+
+        // Reset measurements
+        function resetMeasurements() {
+            points = [];
+            segments = [];
+            messageDiv.style.display = 'none';
+            actualDataDiv.style.display = 'none';
+            updateMeasurementsList();
+            draw();
+        }
+
+        // Update measurements list
+        function updateMeasurementsList() {
+            if (segments.length === 0) {
+                measurementsList.innerHTML = '<li class="no-measurements">No measurements yet. Click two points to start.</li>';
+            } else {
+                measurementsList.innerHTML = segments.map((seg, i) => `
+                    <li>Segment ${i + 1}: <b>${seg.px.toFixed(2)} px</b> → <b>${seg.mm.toFixed(2)} mm</b></li>
+                `).join('');
+            }
+        }
+    </script>
+</body>
+</html>

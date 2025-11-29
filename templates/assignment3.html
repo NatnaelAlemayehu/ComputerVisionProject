@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assignment 3 - Image Processing</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/assignment3.css') }}">
+</head>
+<body>
+    <a href="/" class="nav-home">← Home</a>
+    <div class="container">
+        <header><h1>Computer Vision Assignment 3</h1><p class="subtitle">Image Processing: Gradients, Edges, Corners & Contours</p></header>
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('gradients')">Question 1: Gradients & LoG</div>
+            <div class="tab" onclick="switchTab('edges')">Question 2a: Edge Detection</div>
+            <div class="tab" onclick="switchTab('corners')">Question 2b: Corner Detection</div>
+            <div class="tab" onclick="switchTab('contours')">Question 3: Contour Detection</div>
+            <div class="tab" onclick="switchTab('aruco')">Question 4: ArUco Markers</div>
+            <div class="tab" onclick="switchTab('comparison')">Question 5: Image Comparison</div>
+        </div>
+        <div id="gradients" class="tab-content active">
+            <div class="info-box"><h3>📊 Gradient Magnitude, Angle, and Laplacian of Gaussian</h3><p>Computes gradient images and Laplacian of Gaussian.</p></div>
+            <div class="upload-section"><label for="gradient-file" class="upload-btn">Choose Image</label><input type="file" id="gradient-file" accept="image/*" onchange="previewFile('gradients')"><p id="gradient-filename"></p></div>
+            <button class="process-btn" id="gradient-process-btn" onclick="processGradients()" disabled>Process Image</button>
+            <div class="error" id="gradient-error"></div>
+            <div class="loading" id="gradient-loading"><div class="spinner"></div><p>Processing image...</p></div>
+            <div class="results" id="gradient-results">
+                <h2>Results</h2>
+                <div class="results-grid">
+                    <div class="result-item"><h3>Original Image</h3><img id="gradient-original" src="" alt="Original"></div>
+                    <div class="result-item"><h3>Gradient Magnitude</h3><img id="gradient-magnitude" src="" alt="Magnitude"></div>
+                    <div class="result-item"><h3>Gradient Angle</h3><img id="gradient-angle" src="" alt="Angle"></div>
+                    <div class="result-item"><h3>Laplacian of Gaussian</h3><img id="gradient-log" src="" alt="LoG"></div>
+                </div>
+            </div>
+        </div>
+        <div id="edges" class="tab-content">
+            <div class="info-box"><h3>🔲 Edge Detection</h3><p>Detects edges using gradient magnitude thresholding.</p></div>
+            <div class="upload-section"><label for="edge-file" class="upload-btn">Choose Image</label><input type="file" id="edge-file" accept="image/*" onchange="previewFile('edges')"><p id="edge-filename"></p></div>
+            <div class="controls"><div class="control-group"><label for="edge-threshold">Threshold (0-255): <span id="threshold-value">80</span></label><input type="range" id="edge-threshold" min="0" max="255" value="80" oninput="updateThreshold()"></div></div>
+            <button class="process-btn" id="edge-process-btn" onclick="processEdges()" disabled>Detect Edges</button>
+            <div class="error" id="edge-error"></div>
+            <div class="loading" id="edge-loading"><div class="spinner"></div><p>Detecting edges...</p></div>
+            <div class="results" id="edge-results">
+                <h2>Results</h2>
+                <div class="results-grid">
+                    <div class="result-item"><h3>Original Image</h3><img id="edge-original" src="" alt="Original"></div>
+                    <div class="result-item"><h3>Detected Edges</h3><img id="edge-edges" src="" alt="Edges"></div>
+                </div>
+            </div>
+        </div>
+        <div id="corners" class="tab-content">
+            <div class="info-box"><h3>📍 Corner Detection (Harris)</h3><p>Detects corners using Harris corner detector.</p></div>
+            <div class="upload-section"><label for="corner-file" class="upload-btn">Choose Image</label><input type="file" id="corner-file" accept="image/*" onchange="previewFile('corners')"><p id="corner-filename"></p></div>
+            <div class="controls">
+                <div class="control-group"><label for="max-corners">Max Corners:</label><input type="number" id="max-corners" value="200" min="1" max="1000"></div>
+                <div class="control-group"><label for="quality-level">Quality Level:</label><input type="number" id="quality-level" value="0.01" min="0.001" max="1" step="0.001"></div>
+                <div class="control-group"><label for="min-distance">Min Distance (pixels):</label><input type="number" id="min-distance" value="20" min="1" max="100"></div>
+            </div>
+            <button class="process-btn" id="corner-process-btn" onclick="processCorners()" disabled>Detect Corners</button>
+            <div class="error" id="corner-error"></div>
+            <div class="loading" id="corner-loading"><div class="spinner"></div><p>Detecting corners...</p></div>
+            <div class="results" id="corner-results">
+                <h2>Results</h2>
+                <div class="result-info" id="corner-count"></div>
+                <div class="results-grid">
+                    <div class="result-item"><h3>Original Image</h3><img id="corner-original" src="" alt="Original"></div>
+                    <div class="result-item"><h3>Detected Corners</h3><img id="corner-corners" src="" alt="Corners"></div>
+                </div>
+            </div>
+        </div>
+        <div id="contours" class="tab-content">
+            <div class="info-box"><h3>🎯 Contour Detection</h3><p>Finds exact boundaries of objects using contour detection.</p></div>
+            <div class="upload-section"><label for="contour-file" class="upload-btn">Choose Image</label><input type="file" id="contour-file" accept="image/*" onchange="previewFile('contours')"><p id="contour-filename"></p></div>
+            <div class="controls"><div class="control-group"><label for="contour-method">Detection Method:</label><select id="contour-method"><option value="otsu">Otsu's Thresholding</option><option value="canny">Canny Edge Detection</option></select></div></div>
+            <button class="process-btn" id="contour-process-btn" onclick="processContours()" disabled>Detect Contours</button>
+            <div class="error" id="contour-error"></div>
+            <div class="loading" id="contour-loading"><div class="spinner"></div><p>Detecting contours...</p></div>
+            <div class="results" id="contour-results">
+                <h2>Results</h2>
+                <div class="result-info" id="contour-count"></div>
+                <div class="results-grid">
+                    <div class="result-item"><h3>Original Image</h3><img id="contour-original" src="" alt="Original"></div>
+                    <div class="result-item"><h3>Binary Image</h3><img id="contour-binary" src="" alt="Binary"></div>
+                    <div class="result-item"><h3>Detected Contours</h3><img id="contour-contours" src="" alt="Contours"></div>
+                </div>
+            </div>
+        </div>
+        <div id="aruco" class="tab-content">
+            <div class="info-box"><h3>🎯 ArUco Marker Detection & Segmentation</h3><p>Detects ArUco markers and segments the region bounded by them.</p></div>
+            <div class="upload-section"><label for="aruco-file" class="upload-btn">Choose Image</label><input type="file" id="aruco-file" accept="image/*" onchange="previewFile('aruco')"><p id="aruco-filename"></p></div>
+            <div class="controls">
+                <div class="control-group"><label for="buffer-distance">Buffer Distance (pixels):</label><input type="number" id="buffer-distance" value="55" min="10" max="200"></div>
+            </div>
+            <button class="process-btn" id="aruco-process-btn" onclick="processAruco()" disabled>Detect & Segment</button>
+            <div class="error" id="aruco-error"></div>
+            <div class="loading" id="aruco-loading"><div class="spinner"></div><p>Processing ArUco markers...</p></div>
+            <div class="results" id="aruco-results">
+                <h2>Results</h2>
+                <div class="result-info" id="aruco-info"></div>
+                <div class="results-grid">
+                    <div class="result-item"><h3>Original Image</h3><img id="aruco-original" src="" alt="Original"></div>
+                    <div class="result-item"><h3>Detected Markers & Boundary</h3><img id="aruco-result" src="" alt="ArUco Result"></div>
+                </div>
+            </div>
+        </div>
+        <div id="comparison" class="tab-content">
+            <div class="info-box"><h3>🔍 Image Comparison Grid</h3><p>Images will be loaded from uploads/assignment3/question5/g1, g2, and g3 folders. Each folder should contain images named 1.jpg, 2.jpg, 3.jpg (or specify custom filenames).</p></div>
+            
+            <div class="comparison-upload-section">
+                <div class="upload-group">
+                    <h4>Group 1 (g1/)</h4>
+                    <input type="text" id="comp-group1-1" placeholder="1.jpg" value="1.jpg" class="image-input">
+                    <input type="text" id="comp-group1-2" placeholder="2.jpg" value="2.jpg" class="image-input">
+                    <input type="text" id="comp-group1-3" placeholder="3.jpg" value="3.jpg" class="image-input">
+                </div>
+                
+                <div class="upload-group">
+                    <h4>Group 2 (g2/)</h4>
+                    <input type="text" id="comp-group2-1" placeholder="1.jpg" value="1.jpg" class="image-input">
+                    <input type="text" id="comp-group2-2" placeholder="2.jpg" value="2.jpg" class="image-input">
+                    <input type="text" id="comp-group2-3" placeholder="3.jpg" value="3.jpg" class="image-input">
+                </div>
+                
+                <div class="upload-group">
+                    <h4>Group 3 (g3/)</h4>
+                    <input type="text" id="comp-group3-1" placeholder="1.jpg" value="1.jpg" class="image-input">
+                    <input type="text" id="comp-group3-2" placeholder="2.jpg" value="2.jpg" class="image-input">
+                    <input type="text" id="comp-group3-3" placeholder="3.jpg" value="3.jpg" class="image-input">
+                </div>
+            </div>
+            
+            <button class="process-btn" id="comparison-display-btn" onclick="displayComparison()">Display Grid</button>
+            
+            <div class="error" id="comparison-error"></div>
+            <div class="loading" id="comparison-loading"><div class="spinner"></div><p>Loading images...</p></div>
+            
+            <div class="results" id="comparison-results">
+                <h2>Comparison Grid</h2>
+                <div class="comparison-grid">
+                    <div class="comparison-row">
+                        <div class="comparison-item"><h4>Group 1 - Image 1</h4><img id="comp-img-1-1" src="" alt=""></div>
+                        <div class="comparison-item"><h4>Group 1 - Image 2</h4><img id="comp-img-1-2" src="" alt=""></div>
+                        <div class="comparison-item"><h4>Group 1 - Image 3</h4><img id="comp-img-1-3" src="" alt=""></div>
+                    </div>
+                    <div class="comparison-row">
+                        <div class="comparison-item"><h4>Group 2 - Image 1</h4><img id="comp-img-2-1" src="" alt=""></div>
+                        <div class="comparison-item"><h4>Group 2 - Image 2</h4><img id="comp-img-2-2" src="" alt=""></div>
+                        <div class="comparison-item"><h4>Group 2 - Image 3</h4><img id="comp-img-2-3" src="" alt=""></div>
+                    </div>
+                    <div class="comparison-row">
+                        <div class="comparison-item"><h4>Group 3 - Image 1</h4><img id="comp-img-3-1" src="" alt=""></div>
+                        <div class="comparison-item"><h4>Group 3 - Image 2</h4><img id="comp-img-3-2" src="" alt=""></div>
+                        <div class="comparison-item"><h4>Group 3 - Image 3</h4><img id="comp-img-3-3" src="" alt=""></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/assignment3.js') }}"></script>
+</body>
+</html>

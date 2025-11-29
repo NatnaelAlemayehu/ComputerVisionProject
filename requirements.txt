@@ -1,0 +1,18 @@
+# Unified Computer Vision Course Web Application Dependencies
+
+# Core web framework
+Flask==3.0.0
+Werkzeug==3.0.1
+
+# Computer vision and image processing
+opencv-python==4.8.1.78
+numpy==1.24.3
+
+# Visualization
+matplotlib==3.7.2
+
+# Real-time pose and hand tracking (Assignment 7)
+mediapipe
+
+# Optional: If you want to use scipy for additional processing
+# scipy

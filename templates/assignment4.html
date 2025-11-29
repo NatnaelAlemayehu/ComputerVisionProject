@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Assignment 4 - SIFT & Stitching</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
+        .nav-home { position: fixed; top: 20px; left: 20px; background: white; padding: 10px 20px; border-radius: 30px; text-decoration: none; color: #667eea; font-weight: bold; box-shadow: 0 2px 10px rgba(0,0,0,0.1); z-index: 100; }
+        .container { max-width: 1400px; margin: 0 auto; background: white; border-radius: 20px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3); overflow: hidden; }
+        header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; }
+        h1 { font-size: 2.5em; margin-bottom: 10px; }
+        .tabs { display: flex; background: #f8f9fa; border-bottom: 2px solid #dee2e6; }
+        .tab { flex: 1; padding: 20px; text-align: center; cursor: pointer; font-weight: 600; color: #495057; transition: all 0.3s; border-bottom: 3px solid transparent; }
+        .tab.active { color: #667eea; border-bottom-color: #667eea; background: white; }
+        .tab-content { display: none; padding: 40px; }
+        .tab-content.active { display: block; }
+        .upload-section { background: #f8f9fa; border: 2px dashed #667eea; border-radius: 15px; padding: 40px; text-align: center; margin-bottom: 30px; }
+        .upload-btn { display: inline-block; padding: 15px 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 30px; cursor: pointer; font-weight: 600; }
+        .process-btn { width: 100%; padding: 15px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 10px; font-size: 1.1em; font-weight: 600; cursor: pointer; }
+        .process-btn:disabled { background: #6c757d; cursor: not-allowed; }
+        .results { display: none; margin-top: 20px; }
+        .results.active { display: block; }
+        .results-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        .result-item { background: #f8f9fa; border-radius: 10px; overflow: hidden; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1); }
+        .result-item h3 { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px; text-align: center; }
+        .result-item img { width: 100%; display: block; }
+        .loading { display: none; text-align: center; padding: 40px; }
+        .loading.active { display: block; }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #667eea; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin: 0 auto 20px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .error { display: none; background: #f8d7da; color: #721c24; padding: 15px; border-radius: 10px; margin-bottom: 20px; }
+        .error.active { display: block; }
+        input[type="file"] { display: none; }
+        .controls { background: #f8f9fa; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
+        .control-group { margin-bottom: 15px; }
+        .control-group label { display: block; margin-bottom: 5px; font-weight: 600; }
+        .control-group input { width: 100%; padding: 10px; border: 2px solid #dee2e6; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <a href="/" class="nav-home">← Home</a>
+    <div class="container">
+        <header><h1>SIFT Feature Extraction & Image Stitching</h1><p>Extract features and create panoramas</p></header>
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('stitching')">Image Stitching</div>
+            <div class="tab" onclick="switchTab('sift')">SIFT Comparison</div>
+        </div>
+        <div id="stitching" class="tab-content active">
+            <div class="upload-section">
+                <label for="stitch-files" class="upload-btn">Choose Images (2+)</label>
+                <input type="file" id="stitch-files" accept="image/*" multiple>
+                <p id="stitch-filenames"></p>
+            </div>
+            <button class="process-btn" id="stitch-btn" onclick="processStitching()" disabled>Stitch Images</button>
+            <div class="error" id="stitch-error"></div>
+            <div class="loading" id="stitch-loading"><div class="spinner"></div><p>Stitching images...</p></div>
+            <div class="results" id="stitch-results">
+                <div class="result-item"><h3>Stitched Panorama</h3><img id="stitch-result" src=""></div>
+            </div>
+        </div>
+        <div id="sift" class="tab-content">
+            <div class="upload-section">
+                <label for="sift-file1" class="upload-btn">Choose Image 1</label>
+                <input type="file" id="sift-file1" accept="image/*">
+                <p id="sift-filename1"></p>
+            </div>
+            <div class="upload-section">
+                <label for="sift-file2" class="upload-btn">Choose Image 2</label>
+                <input type="file" id="sift-file2" accept="image/*">
+                <p id="sift-filename2"></p>
+            </div>
+            <div class="controls">
+                <div class="control-group"><label>Ratio Threshold:</label><input type="number" id="ratio" value="0.65" step="0.05" min="0" max="1"></div>
+                <div class="control-group"><label>RANSAC Threshold:</label><input type="number" id="ransac" value="3.0" step="0.5" min="0"></div>
+                <div class="control-group"><label>Max Matches:</label><input type="number" id="max-matches" value="50" min="10"></div>
+            </div>
+            <button class="process-btn" id="sift-btn" onclick="processSIFT()" disabled>Compare SIFT</button>
+            <div class="error" id="sift-error"></div>
+            <div class="loading" id="sift-loading"><div class="spinner"></div><p>Processing SIFT...</p></div>
+            <div class="results" id="sift-results"></div>
+        </div>
+    </div>
+    <script>
+        function switchTab(name) { document.querySelectorAll('.tab').forEach(t => t.classList.remove('active')); document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active')); event.target.classList.add('active'); document.getElementById(name).classList.add('active'); }
+        document.getElementById('stitch-files').onchange = e => { if(e.target.files.length >= 2) { document.getElementById('stitch-filenames').textContent = `Selected ${e.target.files.length} images`; document.getElementById('stitch-btn').disabled = false; } };
+        document.getElementById('sift-file1').onchange = e => { document.getElementById('sift-filename1').textContent = e.target.files[0]?.name || ''; checkSIFTReady(); };
+        document.getElementById('sift-file2').onchange = e => { document.getElementById('sift-filename2').textContent = e.target.files[0]?.name || ''; checkSIFTReady(); };
+        function checkSIFTReady() { document.getElementById('sift-btn').disabled = !(document.getElementById('sift-file1').files[0] && document.getElementById('sift-file2').files[0]); }
+        async function processStitching() {
+            const files = document.getElementById('stitch-files').files;
+            const formData = new FormData();
+            for(let f of files) formData.append('files[]', f);
+            document.getElementById('stitch-loading').classList.add('active');
+            document.getElementById('stitch-error').classList.remove('active');
+            document.getElementById('stitch-results').classList.remove('active');
+            try {
+                const res = await fetch('/assignment4/stitch_images', { method: 'POST', body: formData });
+                const data = await res.json();
+                if(data.error) throw new Error(data.error);
+                document.getElementById('stitch-result').src = data.stitched + '?' + Date.now();
+                document.getElementById('stitch-results').classList.add('active');
+            } catch(e) {
+                document.getElementById('stitch-error').textContent = e.message;
+                document.getElementById('stitch-error').classList.add('active');
+            } finally {
+                document.getElementById('stitch-loading').classList.remove('active');
+            }
+        }
+        async function processSIFT() {
+            const formData = new FormData();
+            formData.append('file1', document.getElementById('sift-file1').files[0]);
+            formData.append('file2', document.getElementById('sift-file2').files[0]);
+            formData.append('ratio', document.getElementById('ratio').value);
+            formData.append('ransac_threshold', document.getElementById('ransac').value);
+            formData.append('max_matches', document.getElementById('max-matches').value);
+            document.getElementById('sift-loading').classList.add('active');
+            document.getElementById('sift-error').classList.remove('active');
+            document.getElementById('sift-results').classList.remove('active');
+            try {
+                const res = await fetch('/assignment4/process_sift', { method: 'POST', body: formData });
+                const data = await res.json();
+                if(data.error) throw new Error(data.error);
+                let html = '<div class="results-grid">';
+                if(data.opencv) html += `<div class="result-item"><h3>OpenCV SIFT</h3><p>Keypoints: ${data.opencv.keypoints1} / ${data.opencv.keypoints2}</p><p>Matches: ${data.opencv.matches}, Inliers: ${data.opencv.inliers}</p><img src="${data.opencv.matches_img}"></div>`;
+                if(data.custom) html += `<div class="result-item"><h3>Custom SIFT</h3><p>Keypoints: ${data.custom.keypoints1} / ${data.custom.keypoints2}</p><p>Matches: ${data.custom.matches}, Inliers: ${data.custom.inliers}</p><img src="${data.custom.matches_img}"></div>`;
+                html += '</div>';
+                document.getElementById('sift-results').innerHTML = html;
+                document.getElementById('sift-results').classList.add('active');
+            } catch(e) {
+                document.getElementById('sift-error').textContent = e.message;
+                document.getElementById('sift-error').classList.add('active');
+            } finally {
+                document.getElementById('sift-loading').classList.remove('active');
+            }
+        }
+    </script>
+</body>
+</html>

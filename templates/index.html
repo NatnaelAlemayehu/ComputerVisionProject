@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Computer Vision Course - Home</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            font-size: 3em;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 15px;
+        }
+
+        .subtitle {
+            font-size: 1.3em;
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .description {
+            color: #999;
+            font-size: 1em;
+        }
+
+        .assignments-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .assignment-card {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s, box-shadow 0.3s;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+
+        .assignment-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .assignment-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+        }
+
+        .assignment-title {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .assignment-description {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+
+        .assignment-number {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9em;
+            margin-top: 10px;
+        }
+
+        footer {
+            background: white;
+            border-radius: 20px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            color: #666;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2em;
+            }
+
+            .assignments-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎓 Computer Vision Course</h1>
+            <p class="subtitle">Unified Web Application</p>
+            <p class="description">Explore interactive demonstrations of computer vision concepts</p>
+        </header>
+
+        <div class="assignments-grid">
+            <a href="/assignment1" class="assignment-card">
+                <div class="assignment-icon">📏</div>
+                <div class="assignment-title">Camera Calibration</div>
+                <div class="assignment-description">
+                    Estimate real-world dimensions from images using camera calibration parameters. 
+                    Click two points to measure distances.
+                </div>
+                <span class="assignment-number">Assignment 1</span>
+            </a>
+
+            <a href="/assignment2" class="assignment-card">
+                <div class="assignment-icon">🔍</div>
+                <div class="assignment-title">Template Matching</div>
+                <div class="assignment-description">
+                    Detect and blur objects in images using various template matching methods and FFT-based blurring.
+                </div>
+                <span class="assignment-number">Assignment 2</span>
+            </a>
+
+            <a href="/assignment3" class="assignment-card">
+                <div class="assignment-icon">🖼️</div>
+                <div class="assignment-title">Image Processing</div>
+                <div class="assignment-description">
+                    Explore gradients, edge detection, corner detection, and contour finding with adjustable parameters.
+                </div>
+                <span class="assignment-number">Assignment 3</span>
+            </a>
+
+            <a href="/assignment4" class="assignment-card">
+                <div class="assignment-icon">🔗</div>
+                <div class="assignment-title">SIFT & Stitching</div>
+                <div class="assignment-description">
+                    Extract SIFT features, match images, and create panoramas by stitching multiple images together.
+                </div>
+                <span class="assignment-number">Assignment 4</span>
+            </a>
+
+            <a href="/assignment7" class="assignment-card">
+                <div class="assignment-icon">🎥</div>
+                <div class="assignment-title">Real-time Tracking</div>
+                <div class="assignment-description">
+                    Real-time pose and hand tracking using MediaPipe. Record and export tracking data as CSV.
+                </div>
+                <span class="assignment-number">Assignment 7</span>
+            </a>
+        </div>
+
+        <footer>
+            <p>Computer Vision Course - All assignments in one place</p>
+            <p style="margin-top: 10px; font-size: 0.9em;">Built with Flask, OpenCV, and MediaPipe</p>
+        </footer>
+    </div>
+</body>
+</html>
