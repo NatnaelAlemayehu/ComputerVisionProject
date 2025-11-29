@@ -18,6 +18,18 @@ from io import BytesIO, StringIO
 from werkzeug.utils import secure_filename
 from pathlib import Path
 from numpy.fft import fftn, ifftn, fftfreq
+import multiprocessing
+
+# On macOS and some Python installs the default multiprocessing start method is
+# 'spawn' which can lead to resource_tracker warnings about leaked semaphore
+# objects at shutdown when libraries create inter-process semaphores.
+# Setting the start method to 'fork' early can avoid these warnings in many
+# cases. Guard with try/except because the start method can only be set once.
+try:
+    multiprocessing.set_start_method('fork')
+except RuntimeError:
+    # start method already set elsewhere; ignore
+    pass
 
 # Import MediaPipe for Assignment 7
 try:
@@ -953,6 +965,303 @@ def visualize_matches(img1, img2, kps1, kps2, matches, inlier_mask=None, max_mat
 
 
 # ============================================================================
+# ASSIGNMENT 5 & 6: Object Tracking (ArUco and Traditional Trackers)
+# ============================================================================
+
+# Global variables for tracking
+aruco_camera = None
+aruco_active = False
+aruco_markers_detected = 0
+aruco_fps = 0
+
+traditional_camera = None
+traditional_active = False
+traditional_tracker = None
+traditional_tracker_type = "CSRT"
+traditional_tracking_success = False
+traditional_fps = 0
+tracking_bbox = None
+
+@app.route('/assignment5_6')
+def assignment5_6():
+    """Object tracking page with ArUco and traditional trackers"""
+    return render_template('assignment5_6.html')
+
+# ArUco Marker Tracking Routes
+@app.route('/assignment5_6/start_aruco', methods=['POST'])
+def start_aruco_tracking():
+    """Start ArUco marker tracking"""
+    global aruco_camera, aruco_active
+    
+    try:
+        if aruco_camera is None:
+            aruco_camera = cv2.VideoCapture(0)
+            aruco_camera.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+            aruco_camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        
+        aruco_active = True
+        return jsonify({'status': 'success', 'message': 'ArUco tracking started'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/assignment5_6/stop_aruco', methods=['POST'])
+def stop_aruco_tracking():
+    """Stop ArUco marker tracking"""
+    global aruco_camera, aruco_active
+    
+    aruco_active = False
+    if aruco_camera is not None:
+        aruco_camera.release()
+        aruco_camera = None
+    
+    return jsonify({'status': 'success', 'message': 'ArUco tracking stopped'})
+
+@app.route('/assignment5_6/aruco_feed')
+def aruco_feed():
+    """Video stream for ArUco tracking"""
+    def generate():
+        global aruco_active, aruco_markers_detected, aruco_fps
+        
+        aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_4X4_1000)
+        parameters = aruco.DetectorParameters()
+        
+        while aruco_active and aruco_camera is not None:
+            timer = cv2.getTickCount()
+            
+            ret, frame = aruco_camera.read()
+            if not ret:
+                break
+            
+            # Convert to grayscale for detection
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            
+            # Detect ArUco markers
+            corners, ids, rejected = aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
+            
+            # Update marker count
+            aruco_markers_detected = len(ids) if ids is not None else 0
+            
+            # If markers detected
+            if ids is not None and len(ids) > 0:
+                # Draw detected markers
+                frame = aruco.drawDetectedMarkers(frame, corners, ids)
+                
+                # Calculate bounding box around all markers
+                all_corners = []
+                for corner in corners:
+                    for point in corner[0]:
+                        all_corners.append(point)
+                
+                if len(all_corners) > 0:
+                    all_corners = np.array(all_corners)
+                    
+                    x_min = int(np.min(all_corners[:, 0]))
+                    y_min = int(np.min(all_corners[:, 1]))
+                    x_max = int(np.max(all_corners[:, 0]))
+                    y_max = int(np.max(all_corners[:, 1]))
+                    
+                    # Add padding
+                    padding = 20
+                    x_min = max(0, x_min - padding)
+                    y_min = max(0, y_min - padding)
+                    x_max = min(frame.shape[1], x_max + padding)
+                    y_max = min(frame.shape[0], y_max + padding)
+                    
+                    # Draw bounding box
+                    cv2.rectangle(frame, (x_min, y_min), (x_max, y_max), (0, 255, 0), 3)
+                    
+                    # Draw center
+                    center_x = (x_min + x_max) // 2
+                    center_y = (y_min + y_max) // 2
+                    cv2.circle(frame, (center_x, center_y), 5, (0, 0, 255), -1)
+                    
+                    # Display info
+                    cv2.putText(frame, f"Markers: {len(ids)}", (10, 80),
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                    cv2.putText(frame, f"Position: ({center_x}, {center_y})", (10, 110),
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+            else:
+                cv2.putText(frame, "No markers detected", (10, 80),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+            
+            # Calculate FPS
+            aruco_fps = int(cv2.getTickFrequency() / (cv2.getTickCount() - timer))
+            
+            # Display FPS
+            cv2.putText(frame, f"FPS: {aruco_fps}", (10, 30),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50, 170, 50), 2)
+            cv2.putText(frame, "ArUco Tracker", (10, 60),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50, 170, 50), 2)
+            
+            # Encode frame
+            ret, buffer = cv2.imencode('.jpg', frame)
+            frame_bytes = buffer.tobytes()
+            
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+    
+    return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@app.route('/assignment5_6/aruco_status')
+def aruco_status():
+    """Get ArUco tracking status"""
+    return jsonify({
+        'active': aruco_active,
+        'markers': aruco_markers_detected,
+        'fps': aruco_fps
+    })
+
+# Traditional Object Tracking Routes
+@app.route('/assignment5_6/start_traditional', methods=['POST'])
+def start_traditional_tracking():
+    """Start traditional object tracking"""
+    global traditional_camera, traditional_active, traditional_tracker_type, traditional_tracker
+    
+    try:
+        data = request.get_json()
+        traditional_tracker_type = data.get('tracker_type', 'CSRT')
+        
+        if traditional_camera is None:
+            traditional_camera = cv2.VideoCapture(0)
+            traditional_camera.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+            traditional_camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        
+        traditional_active = True
+        traditional_tracker = None  # Will be initialized when user selects ROI
+        
+        return jsonify({'status': 'success', 'message': 'Camera started'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/assignment5_6/stop_traditional', methods=['POST'])
+def stop_traditional_tracking():
+    """Stop traditional object tracking"""
+    global traditional_camera, traditional_active, traditional_tracker
+    
+    traditional_active = False
+    traditional_tracker = None
+    
+    if traditional_camera is not None:
+        traditional_camera.release()
+        traditional_camera = None
+    
+    return jsonify({'status': 'success', 'message': 'Tracking stopped'})
+
+@app.route('/assignment5_6/init_tracker', methods=['POST'])
+def initialize_tracker():
+    """Initialize tracker with ROI selection"""
+    global traditional_tracker, tracking_bbox, traditional_tracking_success
+    
+    try:
+        if traditional_camera is None or not traditional_active:
+            return jsonify({'error': 'Camera not active'}), 400
+        
+        # Read a frame
+        ret, frame = traditional_camera.read()
+        if not ret:
+            return jsonify({'error': 'Failed to read frame'}), 500
+        
+        # Let user select ROI (this would need to be implemented differently in a web context)
+        # For now, we'll use a default bounding box in the center
+        h, w = frame.shape[:2]
+        bbox = (w//2 - 100, h//2 - 100, 200, 200)
+        tracking_bbox = bbox
+        
+        # Create tracker based on type
+        if traditional_tracker_type == 'CSRT':
+            traditional_tracker = cv2.TrackerCSRT_create()
+        elif traditional_tracker_type == 'KCF':
+            traditional_tracker = cv2.TrackerKCF_create()
+        elif traditional_tracker_type == 'MOSSE':
+            traditional_tracker = cv2.legacy.TrackerMOSSE_create()
+        elif traditional_tracker_type == 'MIL':
+            traditional_tracker = cv2.TrackerMIL_create()
+        elif traditional_tracker_type == 'BOOSTING':
+            traditional_tracker = cv2.legacy.TrackerBoosting_create()
+        elif traditional_tracker_type == 'TLD':
+            traditional_tracker = cv2.legacy.TrackerTLD_create()
+        elif traditional_tracker_type == 'MEDIANFLOW':
+            traditional_tracker = cv2.legacy.TrackerMedianFlow_create()
+        else:
+            traditional_tracker = cv2.TrackerCSRT_create()
+        
+        # Initialize tracker
+        traditional_tracker.init(frame, bbox)
+        traditional_tracking_success = True
+        
+        return jsonify({'status': 'success', 'message': 'Tracker initialized'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/assignment5_6/traditional_feed')
+def traditional_feed():
+    """Video stream for traditional tracking"""
+    def generate():
+        global traditional_active, traditional_tracker, traditional_tracking_success, traditional_fps, tracking_bbox
+        
+        while traditional_active and traditional_camera is not None:
+            timer = cv2.getTickCount()
+            
+            ret, frame = traditional_camera.read()
+            if not ret:
+                break
+            
+            # If tracker is initialized, update it
+            if traditional_tracker is not None and tracking_bbox is not None:
+                ret, bbox = traditional_tracker.update(frame)
+                traditional_tracking_success = ret
+                
+                if ret:
+                    # Draw bounding box
+                    p1 = (int(bbox[0]), int(bbox[1]))
+                    p2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
+                    cv2.rectangle(frame, p1, p2, (0, 255, 0), 3)
+                    
+                    cv2.putText(frame, "Tracking", (10, 80),
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 255, 0), 2)
+                else:
+                    cv2.putText(frame, "Tracking failure", (10, 80),
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 255), 2)
+            else:
+                # Draw instruction to select ROI
+                cv2.putText(frame, "Click 'Initialize Tracker' to start", (10, 80),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 255, 0), 2)
+                
+                # Draw default selection area (center box)
+                h, w = frame.shape[:2]
+                cv2.rectangle(frame, (w//2 - 100, h//2 - 100), (w//2 + 100, h//2 + 100), (255, 255, 0), 2)
+                cv2.putText(frame, "Default tracking area", (w//2 - 90, h//2 - 110),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 2)
+            
+            # Calculate FPS
+            traditional_fps = int(cv2.getTickFrequency() / (cv2.getTickCount() - timer))
+            
+            # Display info
+            cv2.putText(frame, f"{traditional_tracker_type} Tracker", (10, 30),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50, 170, 50), 2)
+            cv2.putText(frame, f"FPS: {traditional_fps}", (10, 60),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50, 170, 50), 2)
+            
+            # Encode frame
+            ret, buffer = cv2.imencode('.jpg', frame)
+            frame_bytes = buffer.tobytes()
+            
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+    
+    return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@app.route('/assignment5_6/traditional_status')
+def traditional_status():
+    """Get traditional tracking status"""
+    return jsonify({
+        'active': traditional_active,
+        'tracking': traditional_tracking_success if traditional_tracker is not None else False,
+        'fps': traditional_fps
+    })
+
+
+# ============================================================================
 # ASSIGNMENT 7: Real-time Pose and Hand Tracking
 # ============================================================================
 
@@ -1106,9 +1415,7 @@ def generate_frames():
 
 @app.route('/assignment7')
 def assignment7():
-    """Real-time pose and hand tracking page"""
-    if not MEDIAPIPE_AVAILABLE:
-        return render_template('assignment7.html', error='MediaPipe is not installed')
+    """Real-time pose and hand tracking page - Client-side camera (works everywhere)"""
     return render_template('assignment7.html')
 
 @app.route('/assignment7/video_feed')
@@ -1194,15 +1501,24 @@ if __name__ == '__main__':
         print(f"    - Assignment 2: Template Matching")
         print(f"    - Assignment 3: Image Processing")
         print(f"    - Assignment 4: SIFT & Stitching")
+        print(f"    - Assignment 5 & 6: Object Tracking")
         print(f"    - Assignment 7: Real-time Tracking")
         print("\n" + "="*60 + "\n")
         
         app.run(debug=True, host='0.0.0.0', port=5002, threaded=True)
     finally:
+        # Assignment 7 cleanup
         if camera:
             camera.release()
         if pose:
             pose.close()
         if hands:
             hands.close()
+        
+        # Assignment 5_6 cleanup
+        if aruco_camera:
+            aruco_camera.release()
+        if traditional_camera:
+            traditional_camera.release()
+        
         cv2.destroyAllWindows()

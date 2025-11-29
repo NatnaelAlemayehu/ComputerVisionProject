@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assignment 5 & 6 - Object Tracking</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            min-height: 100vh; 
+            padding: 20px; 
+        }
+        .nav-home { 
+            position: fixed; 
+            top: 20px; 
+            left: 20px; 
+            background: white; 
+            padding: 10px 20px; 
+            border-radius: 30px; 
+            text-decoration: none; 
+            color: #667eea; 
+            font-weight: bold; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+            z-index: 100; 
+        }
+        .container { 
+            max-width: 1400px; 
+            margin: 0 auto; 
+            background: white; 
+            border-radius: 20px; 
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3); 
+            overflow: hidden; 
+        }
+        header { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            color: white; 
+            padding: 30px; 
+            text-align: center; 
+        }
+        h1 { font-size: 2.5em; margin-bottom: 10px; }
+        .subtitle { font-size: 1.2em; opacity: 0.9; }
+        .tabs { 
+            display: flex; 
+            background: #f8f9fa; 
+            border-bottom: 2px solid #dee2e6; 
+        }
+        .tab { 
+            flex: 1; 
+            padding: 20px; 
+            text-align: center; 
+            cursor: pointer; 
+            font-weight: 600; 
+            color: #495057; 
+            transition: all 0.3s; 
+            border-bottom: 3px solid transparent; 
+        }
+        .tab.active { 
+            color: #667eea; 
+            border-bottom-color: #667eea; 
+            background: white; 
+        }
+        .tab-content { 
+            display: none; 
+            padding: 40px; 
+        }
+        .tab-content.active { 
+            display: block; 
+        }
+        .info-box {
+            background: #e7f3ff;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-radius: 10px;
+        }
+        .info-box h3 {
+            margin-bottom: 10px;
+            color: #667eea;
+        }
+        .video-container {
+            position: relative;
+            background: #000;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        .video-container video, .video-container img {
+            width: 100%;
+            display: block;
+            max-height: 600px;
+            object-fit: contain;
+        }
+        .controls-panel {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+        .control-group input, .control-group select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 1em;
+        }
+        .btn {
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin: 5px;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        .btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .btn-secondary {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        .btn-success {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+        .status-bar {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+        .status-bar.recording {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status-bar.stopped {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .tracker-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .info-card {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        .info-card h4 {
+            color: #667eea;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+        }
+        .info-card p {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #333;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .error.active {
+            display: block;
+        }
+        .instructions {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 10px;
+        }
+        .instructions h4 {
+            margin-bottom: 10px;
+            color: #856404;
+        }
+        .instructions ul {
+            margin-left: 20px;
+        }
+        .instructions li {
+            margin-bottom: 5px;
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <a href="/" class="nav-home">← Home</a>
+    <div class="container">
+        <header>
+            <h1>🎯 Object Tracking</h1>
+            <p class="subtitle">Real-time tracking using ArUco markers and traditional trackers</p>
+        </header>
+
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('aruco')">ArUco Marker Tracking</div>
+            <div class="tab" onclick="switchTab('traditional')">Traditional Object Tracking</div>
+        </div>
+
+        <!-- ArUco Marker Tracking Tab -->
+        <div id="aruco" class="tab-content active">
+            <div class="info-box">
+                <h3>📐 ArUco Marker-Based Object Tracking</h3>
+                <p>Track objects in real-time using ArUco markers. Attach 4 markers to your object for robust tracking. The system detects markers, draws a bounding box around the object, and tracks its position.</p>
+            </div>
+
+            <div class="instructions">
+                <h4>🎯 Instructions:</h4>
+                <ul>
+                    <li>Click "Start ArUco Tracking" to begin</li>
+                    <li>Place objects with ArUco markers in front of your camera</li>
+                    <li>The system will automatically detect and track all visible markers</li>
+                    <li>A green bounding box will appear around detected markers</li>
+                    <li>Press 'Q' or ESC to stop tracking</li>
+                </ul>
+            </div>
+
+            <div class="status-bar" id="aruco-status">
+                Status: Ready to start
+            </div>
+
+            <div class="video-container" id="aruco-video-container" style="display: none;">
+                <img id="aruco-stream" src="" alt="ArUco Tracking Stream">
+            </div>
+
+            <div style="text-align: center;">
+                <button class="btn" id="start-aruco-btn" onclick="startArucoTracking()">Start ArUco Tracking</button>
+                <button class="btn btn-secondary" id="stop-aruco-btn" onclick="stopArucoTracking()" style="display: none;">Stop Tracking</button>
+            </div>
+
+            <div class="tracker-info" id="aruco-info" style="display: none;">
+                <div class="info-card">
+                    <h4>Markers Detected</h4>
+                    <p id="aruco-markers">0</p>
+                </div>
+                <div class="info-card">
+                    <h4>FPS</h4>
+                    <p id="aruco-fps">0</p>
+                </div>
+                <div class="info-card">
+                    <h4>Tracking Status</h4>
+                    <p id="aruco-tracking-status">Inactive</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Traditional Object Tracking Tab -->
+        <div id="traditional" class="tab-content">
+            <div class="info-box">
+                <h3>🎯 Traditional Object Tracking</h3>
+                <p>Track any object using traditional computer vision algorithms like CSRT, KCF, MOSSE, and more. Select an object with your mouse and the tracker will follow it through the video stream.</p>
+            </div>
+
+            <div class="instructions">
+                <h4>🎯 Instructions:</h4>
+                <ul>
+                    <li>Select a tracking algorithm from the dropdown</li>
+                    <li>Click "Start Camera" to begin</li>
+                    <li>Draw a bounding box around the object you want to track</li>
+                    <li>The tracker will follow the object automatically</li>
+                    <li>Press 'Q' or ESC to stop tracking</li>
+                </ul>
+            </div>
+
+            <div class="controls-panel">
+                <div class="control-group">
+                    <label for="tracker-type">Tracking Algorithm:</label>
+                    <select id="tracker-type">
+                        <option value="CSRT">CSRT (Recommended - Accurate but slower)</option>
+                        <option value="KCF">KCF (Fast and reliable)</option>
+                        <option value="MOSSE">MOSSE (Fastest)</option>
+                        <option value="MIL">MIL (Multiple Instance Learning)</option>
+                        <option value="BOOSTING">BOOSTING (Original boosting tracker)</option>
+                        <option value="TLD">TLD (Tracking-Learning-Detection)</option>
+                        <option value="MEDIANFLOW">MEDIANFLOW (Good for predictable motion)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="status-bar" id="traditional-status">
+                Status: Select tracker and start camera
+            </div>
+
+            <div class="video-container" id="traditional-video-container" style="display: none;">
+                <img id="traditional-stream" src="" alt="Traditional Tracking Stream">
+            </div>
+
+            <div style="text-align: center;">
+                <button class="btn" id="start-traditional-btn" onclick="startTraditionalTracking()">Start Camera</button>
+                <button class="btn btn-success" id="init-tracker-btn" onclick="initializeTracker()" style="display: none;">Initialize Tracker</button>
+                <button class="btn btn-secondary" id="stop-traditional-btn" onclick="stopTraditionalTracking()" style="display: none;">Stop Tracking</button>
+            </div>
+
+            <div class="tracker-info" id="traditional-info" style="display: none;">
+                <div class="info-card">
+                    <h4>Tracker Type</h4>
+                    <p id="traditional-tracker">-</p>
+                </div>
+                <div class="info-card">
+                    <h4>FPS</h4>
+                    <p id="traditional-fps">0</p>
+                </div>
+                <div class="info-card">
+                    <h4>Tracking Status</h4>
+                    <p id="traditional-tracking-status">Inactive</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function switchTab(name) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById(name).classList.add('active');
+        }
+
+        // ArUco Tracking Functions
+        let arucoInterval = null;
+
+        function startArucoTracking() {
+            fetch('/assignment5_6/start_aruco', { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.error) {
+                        alert(data.error);
+                        return;
+                    }
+                    document.getElementById('aruco-status').textContent = 'Status: Tracking Active';
+                    document.getElementById('aruco-status').classList.add('recording');
+                    document.getElementById('aruco-video-container').style.display = 'block';
+                    document.getElementById('aruco-info').style.display = 'grid';
+                    document.getElementById('start-aruco-btn').style.display = 'none';
+                    document.getElementById('stop-aruco-btn').style.display = 'inline-block';
+                    
+                    // Start streaming
+                    document.getElementById('aruco-stream').src = '/assignment5_6/aruco_feed?' + Date.now();
+                    
+                    // Update status periodically
+                    arucoInterval = setInterval(updateArucoStatus, 500);
+                })
+                .catch(err => alert('Error: ' + err));
+        }
+
+        function stopArucoTracking() {
+            fetch('/assignment5_6/stop_aruco', { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('aruco-status').textContent = 'Status: Stopped';
+                    document.getElementById('aruco-status').classList.remove('recording');
+                    document.getElementById('aruco-status').classList.add('stopped');
+                    document.getElementById('aruco-video-container').style.display = 'none';
+                    document.getElementById('aruco-info').style.display = 'none';
+                    document.getElementById('start-aruco-btn').style.display = 'inline-block';
+                    document.getElementById('stop-aruco-btn').style.display = 'none';
+                    
+                    if (arucoInterval) {
+                        clearInterval(arucoInterval);
+                        arucoInterval = null;
+                    }
+                })
+                .catch(err => alert('Error: ' + err));
+        }
+
+        function updateArucoStatus() {
+            fetch('/assignment5_6/aruco_status')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.active) {
+                        document.getElementById('aruco-markers').textContent = data.markers || 0;
+                        document.getElementById('aruco-fps').textContent = data.fps || 0;
+                        document.getElementById('aruco-tracking-status').textContent = data.markers > 0 ? 'Tracking' : 'Searching';
+                    }
+                });
+        }
+
+        // Traditional Tracking Functions
+        let traditionalInterval = null;
+
+        function startTraditionalTracking() {
+            const trackerType = document.getElementById('tracker-type').value;
+            
+            fetch('/assignment5_6/start_traditional', { 
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tracker_type: trackerType })
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.error) {
+                        alert(data.error);
+                        return;
+                    }
+                    document.getElementById('traditional-status').textContent = 'Status: Camera Active - Select object to track';
+                    document.getElementById('traditional-status').classList.add('recording');
+                    document.getElementById('traditional-video-container').style.display = 'block';
+                    document.getElementById('traditional-info').style.display = 'grid';
+                    document.getElementById('start-traditional-btn').style.display = 'none';
+                    document.getElementById('init-tracker-btn').style.display = 'inline-block';
+                    document.getElementById('stop-traditional-btn').style.display = 'inline-block';
+                    document.getElementById('traditional-tracker').textContent = trackerType;
+                    
+                    // Start streaming
+                    document.getElementById('traditional-stream').src = '/assignment5_6/traditional_feed?' + Date.now();
+                    
+                    // Update status periodically
+                    traditionalInterval = setInterval(updateTraditionalStatus, 500);
+                })
+                .catch(err => alert('Error: ' + err));
+        }
+
+        function initializeTracker() {
+            fetch('/assignment5_6/init_tracker', { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.error) {
+                        alert(data.error);
+                        return;
+                    }
+                    if (data.status === 'success') {
+                        document.getElementById('traditional-status').textContent = 'Status: Tracker Initialized - Tracking in progress';
+                        document.getElementById('init-tracker-btn').style.display = 'none';
+                    }
+                })
+                .catch(err => alert('Error: ' + err));
+        }
+
+        function stopTraditionalTracking() {
+            fetch('/assignment5_6/stop_traditional', { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('traditional-status').textContent = 'Status: Stopped';
+                    document.getElementById('traditional-status').classList.remove('recording');
+                    document.getElementById('traditional-status').classList.add('stopped');
+                    document.getElementById('traditional-video-container').style.display = 'none';
+                    document.getElementById('traditional-info').style.display = 'none';
+                    document.getElementById('start-traditional-btn').style.display = 'inline-block';
+                    document.getElementById('init-tracker-btn').style.display = 'none';
+                    document.getElementById('stop-traditional-btn').style.display = 'none';
+                    
+                    if (traditionalInterval) {
+                        clearInterval(traditionalInterval);
+                        traditionalInterval = null;
+                    }
+                })
+                .catch(err => alert('Error: ' + err));
+        }
+
+        function updateTraditionalStatus() {
+            fetch('/assignment5_6/traditional_status')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.active) {
+                        document.getElementById('traditional-fps').textContent = data.fps || 0;
+                        document.getElementById('traditional-tracking-status').textContent = data.tracking ? 'Tracking' : 'Lost';
+                    }
+                });
+        }
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (arucoInterval) stopArucoTracking();
+            if (traditionalInterval) stopTraditionalTracking();
+        });
+    </script>
+</body>
+</html>

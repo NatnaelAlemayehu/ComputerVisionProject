@@ -4,13 +4,14 @@ A unified Flask web application that combines all computer vision course assignm
 
 ## 🎯 Overview
 
-This application integrates five different computer vision assignments:
+This application integrates six different computer vision assignments:
 
 1. **Assignment 1: Camera Calibration** - Real-world dimension estimation from images
 2. **Assignment 2: Template Matching** - Object detection and FFT-based blurring
 3. **Assignment 3: Image Processing** - Gradients, edges, corners, and contours
 4. **Assignment 4: SIFT & Image Stitching** - Feature extraction and panorama creation
-5. **Assignment 7: Real-time Tracking** - Live pose and hand landmark detection
+5. **Assignment 5 & 6: Object Tracking** - ArUco marker and traditional object tracking
+6. **Assignment 7: Real-time Tracking** - Live pose and hand landmark detection
 
 ## 📋 Requirements
 
@@ -120,6 +121,44 @@ This application integrates five different computer vision assignments:
 3. Click "Compare SIFT"
 4. View side-by-side comparison of custom vs OpenCV SIFT
 
+### Assignment 5 & 6: Object Tracking
+**URL:** `http://localhost:5000/assignment5_6`
+
+**Features:**
+- **ArUco Marker Tracking:** Real-time tracking using ArUco markers
+  - Automatic marker detection
+  - Bounding box around tracked objects
+  - Multi-marker support
+  - Position tracking
+- **Traditional Object Tracking:** Multiple tracking algorithms
+  - CSRT (Recommended - Most accurate)
+  - KCF (Fast and reliable)
+  - MOSSE (Fastest)
+  - MIL, BOOSTING, TLD, MEDIANFLOW
+
+**Usage:**
+
+**For ArUco Tracking:**
+1. Switch to "ArUco Marker Tracking" tab
+2. Click "Start ArUco Tracking"
+3. Place objects with ArUco markers in front of camera
+4. View real-time tracking with bounding box and position
+5. Click "Stop Tracking" when done
+
+**For Traditional Tracking:**
+1. Switch to "Traditional Object Tracking" tab
+2. Select a tracking algorithm from dropdown
+3. Click "Start Camera"
+4. Click "Initialize Tracker" to start tracking (default center box)
+5. Tracker will follow the selected region
+6. Click "Stop Tracking" when done
+
+**Tips:**
+- For ArUco: Use markers from DICT_4X4_1000 dictionary
+- For Traditional: CSRT is most accurate, MOSSE is fastest
+- Ensure good lighting for best results
+- Keep tracked object visible and in frame
+
 ### Assignment 7: Real-time Tracking
 **URL:** `http://localhost:5000/assignment7`
 
@@ -156,6 +195,7 @@ Combined/
 │   ├── assignment2.html       # Assignment 2 page
 │   ├── assignment3.html       # Assignment 3 page
 │   ├── assignment4.html       # Assignment 4 page
+│   ├── assignment5_6.html     # Assignment 5 & 6 page
 │   └── assignment7.html       # Assignment 7 page
 │
 ├── static/                     # Static files
