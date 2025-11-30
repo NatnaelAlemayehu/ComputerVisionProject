@@ -6,6 +6,12 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; }
 h1 { font-size: 2.5em; margin-bottom: 10px; }
 .subtitle { font-size: 1.1em; opacity: 0.9; }
+
+/* Demo Section */
+.demo-section { background: white; padding: 20px; text-align: center; border-bottom: 2px solid #e0e0e0; }
+.demo-btn { display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; padding: 15px 30px; font-size: 1.1em; font-weight: bold; border-radius: 30px; transition: transform 0.3s, box-shadow 0.3s; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4); }
+.demo-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6); }
+
 .tabs { display: flex; background: #f8f9fa; border-bottom: 2px solid #dee2e6; }
 .tab { flex: 1; padding: 20px; text-align: center; cursor: pointer; font-weight: 600; color: #495057; transition: all 0.3s; border-bottom: 3px solid transparent; }
 .tab:hover { background: #e9ecef; }

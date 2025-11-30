@@ -41,6 +41,30 @@
         }
         h1 { font-size: 2.5em; margin-bottom: 10px; }
         .subtitle { font-size: 1.2em; opacity: 0.9; }
+        
+        .demo-section {
+            background: white;
+            padding: 20px;
+            text-align: center;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        .demo-btn {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            padding: 15px 30px;
+            font-size: 1.1em;
+            font-weight: bold;
+            border-radius: 30px;
+            transition: transform 0.3s, box-shadow 0.3s;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        .demo-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        
         .tabs { 
             display: flex; 
             background: #f8f9fa; 
@@ -213,9 +237,16 @@
             <p class="subtitle">Real-time tracking using ArUco markers and traditional trackers (Client-side Webcam)</p>
         </header>
 
+        <!-- Demo Video Section -->
+        <div class="demo-section">
+            <a href="https://drive.google.com/file/d/1nzWGUARFNBU_5QCczJQQyiWYdR2idkP-/view?usp=sharing" target="_blank" class="demo-btn">
+                🎬 Watch Demo Video
+            </a>
+        </div>
+
         <div class="tabs">
             <div class="tab active" onclick="switchTab('aruco')">ArUco Marker Tracking</div>
-            <div class="tab" onclick="switchTab('traditional')">Traditional Object Tracking</div>
+            <div class="tab" onclick="switchTab('traditional')">Object Tracking</div>
         </div>
 
         <!-- ArUco Marker Tracking Tab -->
@@ -439,8 +470,10 @@
                 fpsStartTime = now;
             }
             
-            // Capture frame from video
+            // Draw video to canvas
             arucoCtx.drawImage(sourceVideo, 0, 0);
+            
+            // Capture frame as base64
             const imageData = arucoCanvas.toDataURL('image/jpeg', 0.8);
             
             try {
@@ -452,34 +485,81 @@
                 
                 const data = await response.json();
                 
-                if (data.processed_image) {
-                    const img = new Image();
-                    img.onload = () => {
-                        arucoCtx.clearRect(0, 0, arucoCanvas.width, arucoCanvas.height);
-                        arucoCtx.drawImage(img, 0, 0, arucoCanvas.width, arucoCanvas.height);
-                        processingFrame = false;
-                    };
-                    img.onerror = () => {
-                        processingFrame = false;
-                    };
-                    img.src = data.processed_image;
+                // Draw markers and bounding box client-side
+                if (data.markers > 0 && data.marker_corners) {
+                    // Draw each marker (green quadrilaterals)
+                    arucoCtx.strokeStyle = 'lime';
+                    arucoCtx.lineWidth = 2;
+                    
+                    data.marker_corners.forEach((corners, idx) => {
+                        // Draw marker outline
+                        arucoCtx.beginPath();
+                        arucoCtx.moveTo(corners[0][0], corners[0][1]);
+                        for (let i = 1; i < corners.length; i++) {
+                            arucoCtx.lineTo(corners[i][0], corners[i][1]);
+                        }
+                        arucoCtx.closePath();
+                        arucoCtx.stroke();
+                        
+                        // Draw marker ID
+                        if (data.marker_ids && data.marker_ids[idx] !== undefined) {
+                            const centerX = corners.reduce((sum, pt) => sum + pt[0], 0) / corners.length;
+                            const centerY = corners.reduce((sum, pt) => sum + pt[1], 0) / corners.length;
+                            arucoCtx.fillStyle = 'lime';
+                            arucoCtx.font = 'bold 16px Arial';
+                            arucoCtx.fillText(`${data.marker_ids[idx]}`, centerX - 10, centerY + 5);
+                        }
+                    });
+                    
+                    // Draw bounding box around all markers
+                    if (data.bbox) {
+                        const bbox = data.bbox;
+                        arucoCtx.strokeStyle = 'cyan';
+                        arucoCtx.lineWidth = 3;
+                        arucoCtx.strokeRect(bbox.x, bbox.y, bbox.width, bbox.height);
+                        
+                        // Draw info text
+                        arucoCtx.fillStyle = 'lime';
+                        arucoCtx.font = 'bold 20px Arial';
+                        arucoCtx.fillText(`Markers: ${data.markers}`, 10, 30);
+                        
+                        if (data.center) {
+                            arucoCtx.font = '18px Arial';
+                            arucoCtx.fillStyle = 'yellow';
+                            arucoCtx.fillText(`Position: (${data.center.x}, ${data.center.y})`, 10, 60);
+                            
+                            // Draw center point
+                            arucoCtx.fillStyle = 'red';
+                            arucoCtx.beginPath();
+                            arucoCtx.arc(data.center.x, data.center.y, 5, 0, 2 * Math.PI);
+                            arucoCtx.fill();
+                        }
+                    }
                 } else {
-                    processingFrame = false;
+                    // No markers detected
+                    arucoCtx.fillStyle = 'red';
+                    arucoCtx.font = 'bold 20px Arial';
+                    arucoCtx.fillText('No markers detected', 10, 30);
                 }
                 
+                // Update info display
                 document.getElementById('aruco-markers').textContent = data.markers || 0;
-                if (data.position) {
+                if (data.center) {
                     document.getElementById('aruco-position').textContent = 
-                        `(${data.position.x}, ${data.position.y})`;
+                        `(${data.center.x}, ${data.center.y})`;
                 } else {
                     document.getElementById('aruco-position').textContent = '-';
                 }
             } catch (err) {
                 console.error('Error processing frame:', err);
-                processingFrame = false;
             }
             
-            requestAnimationFrame(processArucoFrames);
+            processingFrame = false;
+            
+            // Wait a tiny bit before next frame to allow rendering
+            setTimeout(() => {
+                requestAnimationFrame(processArucoFrames);
+            }, 1);
         }
 
         // Traditional Tracking Functions

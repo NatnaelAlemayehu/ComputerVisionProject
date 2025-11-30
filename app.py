@@ -95,6 +95,16 @@ def index():
 
 
 # ============================================================================
+# EVALUATION PAGE
+# ============================================================================
+
+@app.route('/evaluation')
+def evaluation():
+    """Module evaluation page for template matching performance"""
+    return render_template('evaluation.html')
+
+
+# ============================================================================
 # ASSIGNMENT 1: Camera Calibration & Real-World Dimension Estimation
 # ============================================================================
 
@@ -1006,17 +1016,18 @@ def process_aruco_frame():
         
         markers_detected = len(ids) if ids is not None else 0
         center_x, center_y = 0, 0
+        bbox = None
+        marker_corners_list = []
         
-        # If markers detected
+        # If markers detected, calculate bounding box coordinates
         if ids is not None and len(ids) > 0:
-            # Draw detected markers
-            frame = aruco.drawDetectedMarkers(frame, corners, ids)
-            
-            # Calculate bounding box around all markers
+            # Collect all marker corners
             all_corners = []
             for corner in corners:
                 for point in corner[0]:
                     all_corners.append(point)
+                # Also store individual marker corners for drawing
+                marker_corners_list.append(corner[0].tolist())
             
             if len(all_corners) > 0:
                 all_corners = np.array(all_corners)
@@ -1033,31 +1044,25 @@ def process_aruco_frame():
                 x_max = min(frame.shape[1], x_max + padding)
                 y_max = min(frame.shape[0], y_max + padding)
                 
-                # Draw bounding box
-                cv2.rectangle(frame, (x_min, y_min), (x_max, y_max), (0, 255, 0), 3)
-                
-                # Draw center
+                # Calculate center
                 center_x = (x_min + x_max) // 2
                 center_y = (y_min + y_max) // 2
-                cv2.circle(frame, (center_x, center_y), 5, (0, 0, 255), -1)
                 
-                # Display info
-                cv2.putText(frame, f"Markers: {len(ids)}", (10, 30),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-                cv2.putText(frame, f"Position: ({center_x}, {center_y})", (10, 60),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
-        else:
-            cv2.putText(frame, "No markers detected", (10, 30),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                # Store bounding box
+                bbox = {
+                    'x': x_min,
+                    'y': y_min,
+                    'width': x_max - x_min,
+                    'height': y_max - y_min
+                }
         
-        # Encode processed frame
-        _, buffer = cv2.imencode('.jpg', frame)
-        processed_img = base64.b64encode(buffer).decode('utf-8')
-        
+        # Return bbox coordinates and marker data (no processed image)
         return jsonify({
-            'processed_image': f'data:image/jpeg;base64,{processed_img}',
             'markers': markers_detected,
-            'position': {'x': int(center_x), 'y': int(center_y)} if markers_detected > 0 else None
+            'marker_ids': ids.flatten().tolist() if ids is not None else [],
+            'marker_corners': marker_corners_list,
+            'bbox': bbox,
+            'center': {'x': int(center_x), 'y': int(center_y)} if markers_detected > 0 else None
         })
         
     except Exception as e:

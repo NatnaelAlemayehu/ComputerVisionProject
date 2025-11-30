@@ -31,6 +31,9 @@
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .hidden { display: none; }
         .error { background: #ff4444; color: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center; }
+        .demo-section { background: white; padding: 20px; text-align: center; border-bottom: 2px solid #e0e0e0; }
+        .demo-btn { display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; padding: 15px 30px; font-size: 1.1em; font-weight: bold; border-radius: 30px; transition: transform 0.3s, box-shadow 0.3s; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4); }
+        .demo-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6); }
     </style>
 </head>
 <body>
@@ -39,6 +42,9 @@
         <div class="header">
             <h1>🔍 Template Matching & Blur</h1>
             <p>Upload an image and detect objects using template matching algorithms</p>
+        </div>
+        <div class="demo-section">
+            <a href="https://drive.google.com/file/d/11xQGQuwmUVz3Qtdv6pTYUCZZjuxtwClS/view?usp=sharing" target="_blank" class="demo-btn">🎬 Watch Demo Video</a>
         </div>
         <div class="content">
             <div class="controls">
